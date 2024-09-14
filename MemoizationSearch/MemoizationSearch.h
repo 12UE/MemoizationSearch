@@ -15,6 +15,77 @@
 #include<iostream>
 #include<string>
 #endif
+#pragma once
+#include <array>
+#include <utility>
+#include <cstdarg>
+namespace xorstr_impl {
+#ifdef _MSC_VER
+#define XORSTR_INLINE __forceinline
+#else
+#define XORSTR_INLINE inline
+#endif
+    constexpr auto time = __TIME__;
+    constexpr auto seed = static_cast<int>(time[7]) +
+        static_cast<int>(time[6]) * 10 +
+        static_cast<int>(time[4]) * 60 +
+        static_cast<int>(time[3]) * 600 +
+        static_cast<int>(time[1]) * 3600 +
+        static_cast<int>(time[0]) * 36000;
+    template <int N>
+    struct random_generator {
+    private:
+        static constexpr unsigned a = 16807;  // 7^5
+        static constexpr unsigned m = 2147483647;  // 2^31 - 1
+        static constexpr unsigned s = random_generator<N - 1>::value;
+        static constexpr unsigned lo = a * (s & 0xFFFF);  // multiply lower 16 bits by 16807
+        static constexpr unsigned hi = a * (s >> 16);  // multiply higher 16 bits by 16807
+        static constexpr unsigned lo2 = lo + ((hi & 0x7FFF) << 16);  // combine lower 15 bits of hi with lo's upper bits
+        static constexpr unsigned hi2 = hi >> 15;  // discard lower 15 bits of hi
+        static constexpr unsigned lo3 = lo2 + hi;
+    public:
+        static constexpr unsigned max = m;
+        static constexpr unsigned value = lo3 > m ? lo3 - m : lo3;
+    };
+    template <>
+    struct random_generator<0> {
+        static constexpr unsigned value = seed;
+    };
+    template <int N, int M>
+    struct random_int {
+        static constexpr auto value = random_generator<N + 1>::value % M;
+    };
+    template <int N>
+    struct random_char {
+        static const char value = static_cast<char>(1 + random_int<N, 0x7F - 1>::value);
+    };
+    template <size_t N, int K>
+    struct string {
+    private:
+        const char key_;
+        std::array<char, N + 1> encrypted_;
+        constexpr char enc(char c) const {
+            return c ^ key_;
+        }
+        char dec(char c) const {
+            return c ^ key_;
+        }
+    public:
+        template <size_t... Is>
+        constexpr XORSTR_INLINE string(const char* str, std::index_sequence<Is...>) :
+            key_(random_char<K>::value), encrypted_{ { enc(str[Is])... } } {}
+        XORSTR_INLINE decltype(auto) decrypt() {
+            for (size_t i = 0; i < N; ++i) {
+                encrypted_[i] = dec(encrypted_[i]);
+            }
+            encrypted_[N] = '\0';
+            return encrypted_.data();
+        }
+    };
+#undef XORSTR_INLINE
+}  // namespace xorstr_impl
+#define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
+  __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
 #define  MEMOIZATIONSEARCH 260//默认的缓存有效时间260ms
 #ifdef _WIN64
 using TimeType = unsigned long long;
@@ -55,13 +126,13 @@ using TimeType = unsigned long;
          std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
          funcname = szName + " " + perfix;//函数的名字拼接上前缀
 #ifdef DEBUG_LOG
-         std::cout << funcname << "---> Begin\n";//当构造的时候会自动打印函数开始 
+         std::cout << funcname << xorstr("---> Begin\n");//当构造的时候会自动打印函数开始 
 #endif
      }
      SAFE_BUFFER inline  ~AutoLog() noexcept {//当对象析构的时候会自动调用
 #ifdef DEBUG_LOG
          std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
-         std::cout << funcname << "---> End\n";//当对象析构时候自动打印结束
+         std::cout << funcname << xorstr("---> End\n");//当对象析构时候自动打印结束
 #endif
      }
  };
@@ -92,13 +163,13 @@ namespace std {
     };
     template<typename... T>struct hash<tuple<T...>> {//对于tuple的hash 其中tuple内是任意的类型
         SAFE_BUFFER inline size_t operator()(const tuple<T...>& t) const noexcept {
-            AUTOLOGPERFIX(std::string("hash<>") + std::string(typeid(tuple<T...>).name()))//自动记录日志
+            AUTOLOGPERFIX(std::string(xorstr("hash<>")) + std::string(typeid(tuple<T...>).name()))//自动记录日志
             return TupleHasher<T...>::hashvalue(t); //调用hashvalue 获得hash值
         }
     };
     template <typename ...T>struct hash<std::function<T...>> {//对于std::function的hash
         SAFE_BUFFER inline  size_t operator()(const std::function<T...>& f) const noexcept {
-            AUTOLOGPERFIX(std::string("hash<> ") + std::string(typeid(std::function<T...>).name()))//自动记录日志
+            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(std::function<T...>).name()))//自动记录日志
             return hasher(f.target_type().name());//返回函数的类型的hash
         }
     };
@@ -133,7 +204,7 @@ namespace memoizationsearch {
         SAFE_BUFFER inline static T& GetInstance() {
             AUTOLOGPERFIX(typeid(T).name())// 自动记录日志 
             auto ptr = instancePtr.load();     // 原子加载指针
-            if (!ptr)throw std::runtime_error("Instance not yet constructed!");//抛出未构造异常
+            if (!ptr)throw std::runtime_error(xorstr("Instance not yet constructed!"));//抛出未构造异常
             return *ptr;                     // 返回对象的引用
         }
     };
@@ -169,12 +240,12 @@ namespace memoizationsearch {
     }
     template<typename T>static inline bool ReadElementFromFile(std::ifstream& file, T& value) {//对于基本类型的读取
         AUTOLOGPERFIX(typeid(T).name())//自动记录日志
-        if(!file) throw std::runtime_error("File not open!");//如果文件打开失败就抛出异常
+        if(!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
         return file.read(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//读取文件
     }
     template<typename T>static inline bool WriteElementToFile(std::ofstream& file, const T& value) {//对于基本类型的写入
         AUTOLOGPERFIX(typeid(T).name())//自动记录日志
-        if(!file) throw std::runtime_error("File not open!");//如果文件打开失败就抛出异常
+        if(!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
         return file.write(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//写入文件
     }
     template<typename T, typename U>static inline bool WritePairToFile(std::ofstream& file, std::pair<T, U>& pair) { //对于pair的写入
@@ -278,7 +349,7 @@ namespace memoizationsearch {
                 delete[] objectpool;//所有在objectpool上的对象都是placement new的对象 需要手动释放
             }
             template<typename U, typename... Args>SAFE_BUFFER inline T& operator()(const U& prefix,const Args&... args){
-                AUTOLOGPERFIX(std::string("Functor ") + typeid(T).name())//自动记录日志
+                AUTOLOGPERFIX(std::string(xorstr("Functor ")) + typeid(T).name())//自动记录日志
                 auto seed = typeid(T).hash_code() ^ std::hasher(std::make_tuple(prefix, args...));//通过对参数的hash和类型的hash异或得到一个唯一的seed
                 auto it = m_pool.find(seed);//查找是否存在
                 if (LIKELY(it != m_pool.end()))return *it->second;//如果存在直接返回
@@ -310,7 +381,7 @@ namespace memoizationsearch {
                 return currenttime+ timeoffsetpice;//返回老的时间加上次时间增长时间的1/4
             }else {
                 static auto Update = [&]() {
-                    AUTOLOGPERFIX("UpdateTime")//自动记录日志
+                    AUTOLOGPERFIX(xorstr("UpdateTime"))//自动记录日志
                     ScopeLock lock(MemoizationGetCurrentTimeMtx);//加锁 防止多线程同时更新
                     auto newtime = std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//获取当前时间
                     timeoffsetpice = (newtime - currenttime) / 4;//计算时间增长的1/4
@@ -610,7 +681,7 @@ namespace memoizationsearch {
                 return retref;//返回缓存的引用
             }
             SAFE_BUFFER inline R& operator()(const Args&... args) const noexcept {
-                AUTOLOGPERFIX(typeid(CachedFunction).name()+std::string("Functor"))//自动记录日志
+                AUTOLOGPERFIX(typeid(CachedFunction).name()+std::string(xorstr("Functor")))//自动记录日志
                 m_nowtime = approximategetcurrenttime();//获取当前时间
                 KeyType<Args...>&& argsTuple = std::make_tuple(args...);//构造参数的tuple
                 if (m_cacheinstance->empty() ||!CompareTuple(staticargstuple,argsTuple)|| staticiter == m_cacheend) {//前期不做时间判断
@@ -766,7 +837,7 @@ namespace memoizationsearch {
             inline void operator << (const CachedFunction& others) noexcept { AUTOLOG m_cache = others.m_cache; }
             friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction&)noexcept { AUTOLOG return os << 1; }
             SAFE_BUFFER inline R& operator()() const noexcept {
-                AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string("Functor"))//自动记录日志
+                AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//自动记录日志
                 if ((TimeType)m_cache.second > (TimeType)approximategetcurrenttime()) return m_cache.first;
                 return setcacheresettime(m_func(), (TimeType)(safeadd(approximategetcurrenttime(), m_cacheTime)));
             }

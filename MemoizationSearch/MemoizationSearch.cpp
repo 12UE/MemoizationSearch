@@ -205,7 +205,13 @@ int sub(int a, int b) {
     std::ignore=dbgobj->c_str();
     return 0;
 }
-
+template<typename T>
+T Read(LPVOID addr) {
+    SIZE_T nRet = 0;
+	T tRead{};
+    ReadProcessMemory(GetCurrentProcess(), addr, &tRead, sizeof(T), &nRet);
+    return tRead;
+}
 template <typename Tuple, std::size_t... I>
 bool compare_impl(Tuple&& t1, Tuple&& t2, std::index_sequence<I...>) {
     std::cout << "compare_impl" << std::endl;
