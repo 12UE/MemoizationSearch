@@ -23,7 +23,7 @@
 __int64 Fibonacci(int n) {
 	if (n <= 1) return n;
 	//利用makecached函数生成一个缓存搜索的函数
-	static auto fib = makecache(Fibonacci);
+	static auto fib = MakeCache(Fibonacci);
 	return fib(n - 1) + fib(n - 2);
 }
 int main(){
