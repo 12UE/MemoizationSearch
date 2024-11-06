@@ -253,7 +253,7 @@ void pirnthello() {
     std::cout << "hello world" << std::endl;
 }
 static  auto program_start = std::chrono::system_clock::now().time_since_epoch();//程序开始的时间的时间戳
-static inline unsigned long approximategetcurrenttime() noexcept {
+static inline unsigned long  approximategetcurrenttime() noexcept {
     //AUTOLOG //自动记录日志
     return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
 

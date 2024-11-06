@@ -19,6 +19,7 @@
 #include <array>
 #include <utility>
 #include <cstdarg>
+#include<algorithm>
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -681,7 +682,6 @@ namespace memoizationsearch {
                     ScopeLock lock(m_mutex);//加锁
                     while (m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_cacheend = m_cacheinstance->end();//更新迭代器
-                    staticiter = m_cacheend;//更新静态迭代器
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
@@ -695,7 +695,7 @@ namespace memoizationsearch {
                     retref = &(*it).second.first; // 取迭代器指向的元素的地址
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
-                staticiter = m_cacheend;//更新静态迭代器
+                staticiter = m_cache->find(argsTuple);
                 return *retref;//返回缓存的引用
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
@@ -735,9 +735,8 @@ namespace memoizationsearch {
             }
             inline bool savecache(const char* szFileName)noexcept {//将缓存保存到文件
                 AUTOLOG//自动记录日志
-                std::ofstream file(GetUniqueName(m_func,szFileName), std::ios::binary | std::ios::trunc);//配合GetUniqueName获取唯一的名字二进制形式打开文件trunc意味着每次打开都会清空文件
-                if (!operator>>(file)) return false;
-                file.close();
+                    std::ifstream file(GetUniqueName(m_func, szFileName), std::ios::binary);//二进制形式打开文件
+                operator<<(file);
                 return true;
             }
             inline bool loadcache(const char* szFileName)noexcept {//从文件加载缓存
@@ -751,17 +750,21 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 if (!file.is_open()) return false;//如果文件没有打开返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
+
                 for (auto& pair : *m_cache) {
                     if (std::hasher(pair.second.first) == std::hasher(R{})) continue;
                     if (!WriteTupleToFile(file, pair.first) || !WritePairToFile(file, pair.second)) {
                         continue;
                     }
                 }
+                file.flush();
+                //判断文件大小 等于0的时候删除文件
                 return true;
             }
             inline bool operator<<(std::ifstream& file) noexcept {//从文件读取缓存
                 AUTOLOG//自动记录日志
-                if (!file.is_open()||file.eof()) return false;//如果文件没有打开返回false
+                if (!file.is_open()) return false;//如果文件没有打开返回false
+				if (file.tellg() == 0) return false;//如果文件的位置是0返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
                 while (file) {
