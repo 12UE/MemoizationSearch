@@ -32,7 +32,7 @@ static inline std::string WideStringToString(const std::wstring& wideString) {
     static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.to_bytes(wideString);
 }
-auto WideStringToStringCached = MakeCache(WideStringToString);//0xFFFF'FFFF'FFFF'FFFF代表有效期无限 永远也不会过期
+auto WideStringToStringCached = MakeCache(WideStringToString);//0xFFFF'FFFF'FFFF'FFFF代表有效期无�? 永远也不会过�?
 #include <chrono>
 #include <cmath>
 #include <vector>
@@ -40,8 +40,8 @@ auto WideStringToStringCached = MakeCache(WideStringToString);//0xFFFF'FFFF'FFFF
 template<class PRE>
 INT64 TestSpeed(const PRE& pre, INT64 initcount = 1e+3) noexcept {
     INT64 int_count = initcount; // 初始测试次数
-    const int num_runs = 20; // 每次运行的次数
-    std::vector<double> results(num_runs); // 存储每次运行的结果
+    const int num_runs = 20; // 每次运行的次�?
+    std::vector<double> results(num_runs); // 存储每次运行的结�?
     const double max_total_time = 5.0; // 最大总运行时间（秒）
     const double target_time_per_run = 0.1; // 每次运行的目标时间（秒）
 
@@ -59,7 +59,7 @@ INT64 TestSpeed(const PRE& pre, INT64 initcount = 1e+3) noexcept {
         }
         double avg_result = total_result / num_runs;
 
-        // 计算标准差
+        // 计算标准�?
         double sum_sq_diff = 0.0;
         for (const auto& res : results) {
             double diff = res - avg_result;
@@ -67,7 +67,7 @@ INT64 TestSpeed(const PRE& pre, INT64 initcount = 1e+3) noexcept {
         }
         double stddev = std::sqrt(sum_sq_diff / num_runs);
 
-        // 判断是否达到稳定性（相对标准差小于 1%）
+        // 判断是否达到稳定性（相对标准差小�? 1%�?
         if ((stddev / avg_result) < 0.1 || total_time > max_total_time) {
             return static_cast<INT64>(avg_result);
         }
@@ -96,7 +96,7 @@ std::string formatWithCommas(INT64 value) {
     return num;
 }
 
-// 使用一个矩阵来存储每月的最低成本，每列表示一个库存水平
+// 使用一个矩阵来存储每月的最低成本，每列表示一个库存水�?
 
 #undef max
 #undef min
@@ -127,7 +127,7 @@ public:
     int get_random_value() {
         count++;
         if (count % 20 == 0) {
-            current_value = dis(gen); // 每10次重新生成随机值
+            current_value = dis(gen); // �?10次重新生成随机�?
         }
         return current_value;
     }
@@ -194,7 +194,7 @@ public:
             // 模拟数据库查询或其他耗时操作
             std::string value = "New Data";
             cache[key] = value;
-            it = cache.find(key);  // 更新迭代器
+            it = cache.find(key);  // 更新迭代�?
             return it->second;
         }
     }
@@ -258,8 +258,26 @@ static inline unsigned long  approximategetcurrenttime() noexcept {
     return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
 
 }
+
+bool CheckPtr(uintptr_t addr){//�жϵ�ַ�Ƿ�ɶ�
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery((LPVOID)addr, &mbi, sizeof(mbi)) == 0) {
+        return false;
+    }
+    if (mbi.Protect & PAGE_NOACCESS) {
+        return false;
+    }
+    //�鿴�Ƿ��ж�ȡȨ��
+    mbi.Protect &= ~PAGE_GUARD;
+    mbi.Protect &= ~PAGE_NOCACHE;
+    return mbi.Protect & PAGE_READONLY || mbi.Protect & PAGE_READWRITE || mbi.Protect & PAGE_WRITECOPY;
+}
+auto CheckPtrCache = MakeCache(CheckPtr);//����һ������ַ�Ƿ�ɶ��Ļ��溯��
 int main() {
-    //有参数的lamda的缓存版本
+	CheckPtrCache.AddFilterCallBacks([](const bool& key) ->bool {
+		if (key)return false;
+        return true;
+		});
     auto cachedlambda = MakeCache([](int a, int b) {
         std::cout << "foo" << "\n";
         return a + b;
@@ -267,11 +285,11 @@ int main() {
     auto cachelambdafirst = MakeCache([](int a) {
         return a;
         });
-    //无参数的函数的缓存版本
+    //无参数的函数的缓存版�?
     auto noparam = MakeCache(foo1);
     auto noparam2 = MakeCache(foo1);
-    std::cout<<"noparam ptr:" << noparam.Raw()<<std::endl;//裸指针调用 只会创建一次
-    std::cout<<"noparam2 ptr:" << noparam2.Raw()<<std::endl;//裸指针调用
+    std::cout<<"noparam ptr:" << noparam.Raw()<<std::endl;//裸指针调�? 只会创建一�?
+    std::cout<<"noparam2 ptr:" << noparam2.Raw()<<std::endl;//裸指针调�?
     std::cout << cachedlambda(35, 99) << "\n";//有参数的情况
 
     std::cout << cachedlambda(35, 99) << "\n";//有参数的情况
@@ -280,9 +298,9 @@ int main() {
     //无参数函数的缓存版本
     std::cout << noparam() << "\n";
     std::cout << noparam() << "\n";
-    noparam.cleancache();//清除所有缓存
+    noparam.cleancache();//清除所有缓�?
     std::cout << noparam() << "\n";
-    //无参数lambda的缓存版本
+    //无参数lambda的缓存版�?
     //输出函数类型
     std::cout << noparam.GetObjectName() << "\n";
     memoizationsearch::nonstd::CachedFunction<std::string> handmadevoidfunc{ std::make_pair("msg box", INFINITYCACHE) };
@@ -291,7 +309,7 @@ int main() {
     //std::cout << fib(256) << "\n";
     std::ofstream outfile("fibFibonacci", std::ios::binary|std::ios::trunc);
     fib >> outfile;//流式写入 从内存到文件
-    //从文件读取缓存
+    //从文件读取缓�?
     WideStringToStringCached.loadcache("WideStringToStringCached");
     std::cout << WideStringToStringCached(L"what's happen?").c_str() << std::endl;
     std::cout << WideStringToStringCached(L"hello world").c_str() << std::endl;
@@ -309,7 +327,7 @@ int main() {
     auto newcache = MakeCache(WideStringToString);//新创建的缓存函数里面没有东西
     std::cout <<"CacheTime:" << newcache.getcachetime()<<"ms" << std::endl;
     newcache.setcachetime(580);
-    newcache(L"WIDETONARRO");//newcache可以被调用WIDETONARRO是没被缓存过得
+    newcache(L"WIDETONARRO");//newcache可以被调用WIDETONARRO是没被缓存过�?
     //把newcache的缓存内容弄到test里面
     Sleep(10);
     test << newcache;
@@ -322,22 +340,22 @@ int main() {
         std::cout << (*iter).second.first.c_str() << std::endl;
     }
     std::cout << "print----------------------" << std::endl;
-    //输出缓存的个数
+    //输出缓存的个�?
     std::cout << "count:" << test << std::endl;
     test.savecache("WideStringToStringCached");
     std::cout << "others----------------------" << std::endl;
 #ifdef _WIN64
-    auto K32GetPerformanceInfoCaChe = MakeCacheEx(K32GetPerformanceInfo, memoizationsearch::nonstd::CallType::stdcall,MEMOIZATIONSEARCH);//stdcall的调用方式,默认是cdecl
+    auto K32GetPerformanceInfoCaChe = MakeCacheEx(K32GetPerformanceInfo, memoizationsearch::nonstd::CallType::stdcall,MEMOIZATIONSEARCH);//stdcall的调用方�?,默认是cdecl
     PERFORMANCE_INFORMATION pi{};
     //调用缓存函数
     K32GetPerformanceInfoCaChe(&pi, sizeof(pi));
-    //保存函数到文件
+    //保存函数到文�?
     K32GetPerformanceInfoCaChe.savecache("K32GetPerformanceInfoCache");
     std::cout << "ProcessCount:" << pi.ProcessCount<< std::endl;
     //打印函数类型
     std::cout << typeid(decltype(K32GetPerformanceInfoCaChe.m_func)).name() << std::endl;
     //获取函数地址
-    std::cout << &K32GetPerformanceInfoCaChe << std::endl;//转函数指针
+    std::cout << &K32GetPerformanceInfoCaChe << std::endl;//转函数指�?
     auto funcptr=&K32GetPerformanceInfoCaChe;
     std::cout << typeid(decltype(funcptr)).name() << std::endl;
     std::cout << "ProcessCount Raw:" << pi.ProcessCount << std::endl;
@@ -354,9 +372,13 @@ int main() {
     std::cout<<memcached(6, 8)<<std::endl;
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
+    fib.AddFilterCallBacks([](const unsigned long long& key) ->bool {
+        return false;
+        });
     auto speed=TestSpeed([]() { 
         fib(2);
         });
+    
 	std::cout << speed << "/s" << std::endl;
     system("pause");
 }
