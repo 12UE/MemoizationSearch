@@ -277,7 +277,7 @@ int main() {
 	CheckPtrCache.AddFilterCallBacks([](const bool& key) ->bool {
 		if (key)return false;
         return true;
-		});
+	});
     auto cachedlambda = MakeCache([](int a, int b) {
         std::cout << "foo" << "\n";
         return a + b;

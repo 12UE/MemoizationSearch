@@ -750,7 +750,6 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 if (!file.is_open()) return false;//如果文件没有打开返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-
                 for (auto& pair : *m_cache) {
                     if (std::hasher(pair.second.first) == std::hasher(R{})) continue;
                     if (!WriteTupleToFile(file, pair.first) || !WritePairToFile(file, pair.second)) {
