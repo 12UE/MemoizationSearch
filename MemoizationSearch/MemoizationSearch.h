@@ -11,6 +11,7 @@
 #include <fstream>
 #include <initializer_list>
 #include <type_traits>
+#include <limits> 
 #ifdef _DEBUG
 #include<iostream>
 #include<string>
@@ -27,11 +28,7 @@ namespace xorstr_impl {
 #endif
     constexpr auto time = __TIME__;
     constexpr auto seed = static_cast<int>(time[7]) +
-        static_cast<int>(time[6]) * 10 +
-        static_cast<int>(time[4]) * 60 +
-        static_cast<int>(time[3]) * 600 +
-        static_cast<int>(time[1]) * 3600 +
-        static_cast<int>(time[0]) * 36000;
+        static_cast<int>(time[6]) * 10 +static_cast<int>(time[4]) * 60 +static_cast<int>(time[3]) * 600 +static_cast<int>(time[1]) * 3600 +static_cast<int>(time[0]) * 36000;
     template <int N>
     struct random_generator {
     private:
@@ -86,7 +83,7 @@ namespace xorstr_impl {
 }  // namespace xorstr_impl
 #define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
   __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
-#define  MEMOIZATIONSEARCH 260//默认的缓存有效时间260ms
+#define  MEMOIZATIONSEARCH 75//默认的缓存有效时间75ms
 #ifdef _WIN64
 using TimeType = unsigned long long;
  auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//定义缓存的最大时间
@@ -119,10 +116,13 @@ using TimeType = unsigned long;
 #define THISCALL//在GCC/Clang下没有这个东西 定义为空
 #endif
 #ifdef _DEBUG
- static std::recursive_timed_mutex logmtx;
  struct AutoLog {
+     using Clock = std::chrono::high_resolution_clock;
+     std::recursive_timed_mutex logmtx;
+     Clock::time_point timepoint;
      std::string funcname;//存储函数名字
      SAFE_BUFFER inline AutoLog(const std::string& szName = "", const std::string& perfix = "") noexcept {
+         timepoint = Clock::now();
          std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
          funcname = szName + " " + perfix;//函数的名字拼接上前缀
 #ifdef DEBUG_LOG
@@ -131,20 +131,23 @@ using TimeType = unsigned long;
      }
      SAFE_BUFFER inline  ~AutoLog() noexcept {//当对象析构的时候会自动调用
 #ifdef DEBUG_LOG
+         auto end = Clock::now();
+         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - timepoint).count();
          std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
-         std::cout << funcname << xorstr("---> End\n");//当对象析构时候自动打印结束
+         std::cout << funcname << xorstr("---> End Time: ")<<duration<<"ms\n";;//当对象析构时候自动打印结束
 #endif
      }
  };
-#define AUTOLOG  AutoLog log(__FUNCTION__,"");//直接打印函数名字
-#define AUTOLOGPERFIX(STR)  AutoLog log(__FUNCTION__,STR);//打印函数名字但是加上一些后缀 __FUNCTION__是MSVC下的宏用于获取函数名字   MSVC的扩展都是双下划线开头的
+#define AUTOLOG  AutoLog log(xorstr(__FUNCTION__),"");//直接打印函数名字
+#define AUTOLOGPERFIX(STR)  AutoLog log(xorstr(__FUNCTION__),STR);//打印函数名字但是加上一些后缀 __FUNCTION__是MSVC下的宏用于获取函数名字   MSVC的扩展都是双下划线开头的
 #else
 #define AUTOLOG             //release 模式下什么也不打印
 #define AUTOLOGPERFIX(STR)
 #endif
+constexpr static std::size_t ROOTSEED = 0x92E2194B;//哈希的种子
 namespace std {
     template<typename U>static inline  size_t hasher(const U& value) noexcept {//哈希器，用于对任意类型进行哈希
-        AUTOLOGPERFIX(typeid(U).name())//自动记录日志
+        //AUTOLOGPERFIX(typeid(U).name())//自动记录日志
         static std::hash<U> hasher;//生成一个hash对象
         return hasher(value);//调用hasher
     }
@@ -156,14 +159,14 @@ namespace std {
         template<typename Tuple, size_t... I, typename expander = int[]>
         SAFE_BUFFER static inline size_t hashImpl(Tuple&& t, const index_sequence<I...>&, size_t seed = 0) noexcept {//对于tuple的hash的内部实现
             AUTOLOGPERFIX(typeid(Tuple).name())//自动记录日志
-            (void)expander {0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + 0x92E2194B + (seed << 6) + (seed >> 2)), 0)...};//异或哈希
+            (void)expander {0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + ROOTSEED + (seed << 6) + (seed >> 2)), 0)...};//异或哈希
             return seed;//返回seed seed是一个hash值
         }
-        static SAFE_BUFFER inline size_t Seed()noexcept { AUTOLOG return 0x92E2194B; }//返回内部的种子
+        static SAFE_BUFFER inline size_t Seed()noexcept { AUTOLOG return ROOTSEED; }//返回内部的种子
     };
     template<typename... T>struct hash<tuple<T...>> {//对于tuple的hash 其中tuple内是任意的类型
         SAFE_BUFFER inline size_t operator()(const tuple<T...>& t) const noexcept {
-            AUTOLOGPERFIX(std::string(xorstr("hash<>")) + std::string(typeid(tuple<T...>).name()))//自动记录日志
+            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(tuple<T...>).name()))//自动记录日志
             return TupleHasher<T...>::hashvalue(t); //调用hashvalue 获得hash值
         }
     };
@@ -225,19 +228,7 @@ namespace memoizationsearch {
         static Index  sequence{};//生成一个序列
         return ApplyImpl(std::forward<F>(f), std::forward<Tuple>(tuple), sequence);//展开tuple
     }
-    //eachitem的内部实现
-    template<typename F, typename Tuple, std::size_t... I>
-    static SAFE_BUFFER inline auto EachItemImpl(const F& bin, const Tuple& tup,const std::index_sequence<I...>&) {
-        AUTOLOGPERFIX(typeid(F).name())//自动记录日志
-        return std::make_tuple(bin(std::get<I>(tup))...);//对tuple的每个元素调用f 得到一个新的tuple 其中存每个元素调用f的结果
-    }
-    //对tuple的每个元素调用f 得到一个新的tuple 其中存每个元素调用f的结果
-    template<typename F, typename... Args,typename Index = std::index_sequence_for<Args...>>
-    static SAFE_BUFFER inline auto EachItem(const F& bin, const std::tuple<Args...>& tup) {
-        AUTOLOGPERFIX(typeid(F).name())//自动记录日志
-        static Index index{};//生成一个序列
-        return EachItemImpl(bin, tup, index);//展开tuple
-    }
+   
     template<typename T>static inline bool ReadElementFromFile(std::ifstream& file, T& value) {//对于基本类型的读取
         AUTOLOGPERFIX(typeid(T).name())//自动记录日志
         if(!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
@@ -318,15 +309,14 @@ namespace memoizationsearch {
     }
     namespace nonstd {
         static std::recursive_mutex MemoizationGetCurrentTimeMtx;
-        static auto program_start = std::chrono::high_resolution_clock::now().time_since_epoch();//程序开始的时间的时间戳
+        static auto program_start = std::chrono::high_resolution_clock ::now().time_since_epoch();//程序开始的时间的时间戳
         thread_local static TimeType count = 0;
-        struct ScopeLock {//一种自动加锁的RAII模式
-            explicit inline ScopeLock(std::recursive_mutex& mtx) : m_mutex(mtx), m_locked(false) { AUTOLOG  lock(); }
-            inline ~ScopeLock() { AUTOLOG  unlock(); }
-            SAFE_BUFFER inline void lock() const noexcept { AUTOLOG if (!m_locked && m_mutex.try_lock())m_locked = true; }
-            SAFE_BUFFER inline void unlock()const noexcept { AUTOLOG if (m_locked) m_mutex.unlock(), m_locked = false; }
+        class ScopeLock {//一种自动加锁的RAII模式
             std::recursive_mutex& m_mutex;
-            mutable std::atomic<bool> m_locked;
+            bool m_locked;
+        public:
+            SAFE_BUFFER explicit inline ScopeLock(std::recursive_mutex& mtx) : m_mutex(mtx), m_locked(false) { AUTOLOG m_locked = m_mutex.try_lock(); }
+            SAFE_BUFFER inline ~ScopeLock() { AUTOLOG if (m_locked) m_mutex.unlock(); }
         };
         template<typename T>class ObjectPool :public SingleTon<ObjectPool<T>> {//单例奇异递归模板模式
             std::unordered_map<std::size_t, T*> m_pool;//一个哈希表存储对象的指针 
@@ -369,34 +359,16 @@ namespace memoizationsearch {
                 return *newObj;//返回对象的指针的解引用
             }
         };
-        static TimeType currenttime = 0;
-        static TimeType timeoffsetpice = 0;
         SAFE_BUFFER static inline TimeType approximategetcurrenttime() noexcept {
-            AUTOLOG //自动记录日志
-#ifdef _WIN64
+            //AUTOLOG //自动记录日志
             return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
-#else
-            ++count;
-            if (LIKELY(count / 4 != 0)) {//每四次更新一次时间
-                return currenttime+ timeoffsetpice;//返回老的时间加上次时间增长时间的1/4
-            }else {
-                static auto Update = [&]() {
-                    AUTOLOGPERFIX(xorstr("UpdateTime"))//自动记录日志
-                    ScopeLock lock(MemoizationGetCurrentTimeMtx);//加锁 防止多线程同时更新
-                    auto newtime = std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//获取当前时间
-                    timeoffsetpice = (newtime - currenttime) / 4;//计算时间增长的1/4
-                    currenttime = newtime;//更新时间
-                    if (count > INFINITYCACHE - 1) count = 0;//达到最大值的时候清零
-                };
-                std::thread(Update).detach();//异步更新时间
-            }
-            return currenttime;//返回更新后的时间
-#endif
+
         }
         template<typename T>
         SAFE_BUFFER static inline T safeadd(const T& a, const T& b) noexcept {//安全的相加不会溢出 最大只会返回INFINITYCACHE
             AUTOLOGPERFIX(typeid(T).name())//自动记录日志
-            return (LIKELY(b > INFINITYCACHE - a)) ? INFINITYCACHE : a + b;
+            constexpr auto INFINITYVALUE = std::numeric_limits<T>::max();
+            return (LIKELY(b > INFINITYVALUE - a)) ? INFINITYVALUE : a + b;
         }
         template<typename T> SAFE_BUFFER inline const T& Clamp(const T& m_value, const T& low, const T& high) noexcept { 
             AUTOLOGPERFIX(typeid(T).name())//自动记录日志
@@ -416,6 +388,7 @@ namespace memoizationsearch {
             std::replace(result.begin(), result.end(), '\\', '/');
             return result;
         }
+        bool DefaultFilterCallBack() { return true; }
         enum class CallType : unsigned char {
             cdeclcall = 0,//默认的调用约定
 #ifdef _WIN64
@@ -428,9 +401,22 @@ namespace memoizationsearch {
             mutable CallType m_callType;//函数的调用约定
             mutable TimeType m_cacheTime;//缓存的时间
             mutable std::recursive_mutex m_mutex;//递归的互斥量
+            std::vector<std::function<bool(void)>> m_FilerCallBacks;
             inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) { AUTOLOG };//默认构造函数
-            inline  CachedFunctionBase(void* funcAddr, CallType type, TimeType cacheTime = MEMOIZATIONSEARCH) : m_funcAddr(funcAddr), m_callType(type), m_cacheTime(cacheTime) { AUTOLOG }
+            inline  CachedFunctionBase(void* funcAddr, CallType type, TimeType cacheTime = MEMOIZATIONSEARCH) : m_funcAddr(funcAddr), m_callType(type), m_cacheTime(cacheTime) {
+                AUTOLOG
+                    m_FilerCallBacks.push_back(DefaultFilterCallBack);
+            }
             inline virtual ~CachedFunctionBase(){ AUTOLOG }//析构函数自动记录日志
+            bool FilterCallBack() {
+                for (const auto& callback : m_FilerCallBacks) {
+                    if (!callback())return false;
+                }
+                return true;
+            }
+            void AddFilterCallBacks(std::function<bool(void)>& callbacks) {
+                m_FilerCallBacks.emplace_back(callbacks);
+            }
             inline void setcachetime(TimeType cacheTime) noexcept {//设置缓存的有效时间
                 AUTOLOG//自动记录日志
                 m_cacheTime = cacheTime;//设置缓存的时间
@@ -449,19 +435,19 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                     //判断平台
 #if defined(_NTDDK_)
-                    return "Windows_Kernel";//Windows内核
+                    return xorstr("Windows_Kernel");//Windows内核
 #elif defined(_WIN64)
-                    return "Windows_64-bit";//Windows 64位
+                    return xorstr("Windows_64-bit");//Windows 64位
 #elif defined(_WIN32)
-                    return "Windows_32-bit";//Windows 32位
+                    return xorstr("Windows_32-bit");//Windows 32位
 #elif defined(__APPLE__) || defined(__MACH__)
-                    return "Mac_OS";
+                    return xorstr("Mac_OS");
 #elif defined(__linux__)
-                    return "Linux";
+                    return xorstr("Linux");
 #elif defined(__unix__)
-                    return "Unix";
+                    return xorstr("Unix");
 #elif defined(__FreeBSD__)
-                    return "FreeBSD";
+                    return xorstr("FreeBSD");
 
 #else
                     return "Unknown_Platform";//未知平台
@@ -483,22 +469,32 @@ namespace memoizationsearch {
         //比较tuple内元素是否一一相等 递归具有短路逻辑 tuple内是任意的元素构成 按理来说只是为了函数参数的tuple包判断是否相等 参数应该不会太多而爆栈 递归本天成 迭代方是神，我是不想用递归的但是C++14标准的...包展开非常弱智要不然就只能全判断 完全没短路逻辑 更多写法探讨请自己摸索
         template<typename T>class is_hashable {//判断是否可以hash
             template<typename U>static auto test(int) -> decltype(std::hash<U>{}(std::declval<U>()), std::true_type{});
-            template<typename>static std::false_type test(...);
+            template<typename>static std::false_type test(...) {};
         public:
             static constexpr bool value = decltype(test<T>(0))::value;
         };
         template <std::size_t I = 0, typename... Args, typename Tuple = std::tuple<Args...>>
         SAFE_BUFFER static inline bool const CompareTuple(Tuple&& tupA, Tuple&& tupB) noexcept {
-            AUTOLOGPERFIX(std::to_string(I))//日志打印自己是哪一个CompareTuple 方便知道自己是几层递归
-                if constexpr (UNLIKELY(I >= std::tuple_size<std::decay_t<Tuple>>::value)) {//判断是否到达末尾 std::decay_t<>是让tuple处于退化的状态方便std::tuple_size统计个数
-                return true;//到达递归基返回 tuple中的所有元素都比较了一次都完全相等 最根部返回true
-            }else {//对于&& 的类型 要用std::forward<>模板转换为本身
-				if constexpr (sizeof(decltype(std::get<I>(std::forward<Tuple>(tupA)))) <= sizeof(int)&& !is_hashable<decltype(std::get<I>(std::forward<Tuple>(tupA)))>::value) {//判断是否是基本类型
-                    return (std::get<I>(std::forward<Tuple>(tupA)) == std::get<I>(std::forward<Tuple>(tupB))) ? CompareTuple<I + 1, Args...>(std::forward<Tuple>(tupA), std::forward<Tuple>(tupB)) : false;//没到末尾就继续递归比较下一个I+1是在下一层get用的
-                } else {
-                    return (std::hasher(std::get<I>(std::forward<Tuple>(tupA))) == std::hasher(std::get<I>(std::forward<Tuple>(tupB)))) ? CompareTuple<I + 1, Args...>(std::forward<Tuple>(tupA), std::forward<Tuple>(tupB)) : false;//没到末尾就继续递归比较下一个I+1是在下一层get用的
+            //AUTOLOGPERFIX(std::to_string(I))//日志打印自己是哪一个CompareTuple 方便知道自己是几层递归
+            const auto& tupleA= std::forward<Tuple>(tupA);
+            const auto& tupleB= std::forward<Tuple>(tupB);
+            const auto& elemA = std::get<I>(tupleA);
+            const auto& elemB = std::get<I>(tupleB);
+            using ItemType = decltype(elemA);
+            bool equal = false;
+			if constexpr (std::is_arithmetic<ItemType>::value || !is_hashable<ItemType>::value) {//判断是否是基本型
+                equal=(elemA == elemB);
+            } else {
+                equal=(std::hasher(elemA) == std::hasher(elemB));//非基本类型就对其求hash比较
+            }
+            if (equal) {
+                if constexpr (I + 1 < std::tuple_size<std::decay_t<Tuple>>::value) {//判断是不是最后一个
+                    return CompareTuple<I + 1>(tupleA, tupleB);//非最后一个就递归
+                }else {
+                    return true;//少递归了一次 递归基
                 }
             }
+            return false;
         }
         //缓存的元素类型 由返回值和有效期组成的pair 有效期是一个返回值 有效期是一个时间戳 在这个时间戳之前是有效的
         template<typename R>using CacheitemType = std::pair<std::decay_t<R>, TimeType>;
@@ -506,16 +502,16 @@ namespace memoizationsearch {
             using FuncType =  R(std::decay_t<Args>...);//声明函数类型
             mutable std::function<FuncType> m_func;//函数对象
             using ValueType = CacheitemType<R>;//缓存的元素类型
-            using CacheType = std::unordered_map<KeyType<Args...>, ValueType>;//一个哈希表存储缓存类型
+            using ArgsType = KeyType<Args...>;
+            using CacheType = std::unordered_map<ArgsType, ValueType>;//一个哈希表存储缓存类型
             mutable std::unique_ptr<CacheType> m_cache;//用智能指针 目的是为了不用手动释放内存 在对象析构的时候会自动释放
             mutable CacheType* m_cacheinstance = nullptr;//缓存的实例
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
-            mutable TimeType m_nowtime;//当前时间 用于判断缓存是否过期
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
-            mutable KeyType<Args...> staticargstuple{};//记录上一次参数的tuple
+            mutable ArgsType staticargstuple{};//记录上一次参数的tuple
             inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_cache->size() < others.m_cache->size(); }//比较缓存大小
             inline bool operator>(const CachedFunction& others) { AUTOLOG  return m_cache->size() > others.m_cache->size(); }//比较缓存大小
             inline bool operator<=(const CachedFunction& others) { AUTOLOG  return m_cache->size() <= others.m_cache->size(); }//比较缓存大小
@@ -525,7 +521,7 @@ namespace memoizationsearch {
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
             inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
-                    ScopeLock lock(m_mutex);//加锁保证线程安全
+                ScopeLock lock(m_mutex);//加锁保证线程安全
                 if (others.m_cache &&!others.m_cache->empty())for (const auto& pair : *others.m_cache)m_cache->insert(pair);//拷贝所有的缓存
                 if (m_cache) {//如果缓存的内存不为空 
                     m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
@@ -539,12 +535,13 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 return typeid(CachedFunction).name();//返回类型的名字
             }
-            inline CachedFunction(const std::initializer_list<std::pair<KeyType<Args...>, ValueType>>& list) : CachedFunctionBase(nullptr, CallType::cdeclcall, MEMOIZATIONSEARCH), m_cache(std::make_unique<CacheType>()) {
+            inline CachedFunction(const std::initializer_list<std::pair<ArgsType, ValueType>>& list) : CachedFunctionBase(nullptr, CallType::cdeclcall, MEMOIZATIONSEARCH), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 for (auto& item : list)m_cache->insert(item);
                 if (m_cache) {
                     m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
+                    m_cache->insert(ArgsType{}, ValueType{ R{},INFINITYCACHE });//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
                     m_cacheinstance = m_cache.get();//缓存的实例
@@ -601,7 +598,6 @@ namespace memoizationsearch {
                         if (it == m_cache->end())m_cache->insert(pair);//仅仅拷贝不存在的缓存
                     }
                 }
-                //删除过期的缓存
                 auto nowtime = approximategetcurrenttime();//获取当前时间
                 for (auto it = m_cache->begin(); it != m_cache->end(); it = (it->second.second < nowtime) ? m_cache->erase(it) : ++it) {}//遍历所有的缓存删除过期的缓存
                 return *this;//返回自己
@@ -648,8 +644,8 @@ namespace memoizationsearch {
                 cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//缓存的时间在1和INFINITYCACHE之间
                 auto offset = cacheTime - m_cacheTime;//计算时间的偏移
                 for (auto& item : *m_cache)item.second.second += offset;//更新所有的缓存的时间
-                m_nowtime = approximategetcurrenttime();//获取当前时间
-                for (auto it = m_cache->begin(); it != m_cache->end(); it = (it->second.second < m_nowtime) ? m_cache->erase(it) : ++it) {}//删除过期的缓存
+                TimeType nowtime = approximategetcurrenttime();//获取当前时间
+                for (auto it = m_cache->begin(); it != m_cache->end(); it = (it->second.second < nowtime) ? m_cache->erase(it) : ++it) {}//删除过期的缓存
                 m_cacheTime = cacheTime;//设置缓存的时间
             }
             inline CachedFunction(void* funcAddr, CallType type, const std::function<FuncType>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_func(std::move(func)) {
@@ -663,35 +659,45 @@ namespace memoizationsearch {
                     m_cacheinstance = m_cache.get();
                 }
             }
-            SAFE_BUFFER inline R& asyncspdatecache(const KeyType<Args...>& argsTuple) const noexcept {//异步更新缓存
+            SAFE_BUFFER inline R& asyncspdatecache(const ArgsType& argsTuple)noexcept {//异步更新缓存
                 AUTOLOG
                 auto ret = Apply(m_func, argsTuple);//调用函数
                 ScopeLock lock(m_mutex);//加锁
-                std::thread([this]() {
-                    AUTOLOGPERFIX("INSERT")//自动记录日志
+                static auto Async= [this]()->void {
+                    AUTOLOGPERFIX(xorstr("INSERT"))//自动记录日志
                     ScopeLock lock(m_mutex);//加锁
-                    for (auto it = m_cache->begin(); it != m_cache->end(); it = (it->second.second < m_nowtime) ? m_cache->erase(it) : ++it) {}//删除过期的缓存
-                    while(m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
+                    while (m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_cacheend = m_cacheinstance->end();//更新迭代器
                     staticiter = m_cacheend;//更新静态迭代器
-                }).detach();
-                auto &retref= m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd(m_nowtime, (TimeType)m_cacheTime) }).first->second.first;//插入或者更新缓存
+				};
+                std::thread(Async).detach();
+                R* retref = nullptr;
+                if (FilterCallBack()) {
+                    retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(approximategetcurrenttime(),m_cacheTime) }).first->second.first;//插入或者更新缓存
+                }else {
+                    auto it = m_cache->begin(); // 取到迭代器
+                    retref = (R*)&(*it); // 取迭代器指向的元素的地址
+                }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cacheend;//更新静态迭代器
-                return retref;//返回缓存的引用
+                return *retref;//返回缓存的引用
             }
-            SAFE_BUFFER inline R& operator()(const Args&... args) const noexcept {
-                AUTOLOGPERFIX(typeid(CachedFunction).name()+std::string(xorstr("Functor")))//自动记录日志
-                m_nowtime = approximategetcurrenttime();//获取当前时间
-                KeyType<Args...>&& argsTuple = std::make_tuple(args...);//构造参数的tuple
-                if (m_cacheinstance->empty() ||!CompareTuple(staticargstuple,argsTuple)|| staticiter == m_cacheend) {//前期不做时间判断
-                    staticiter = m_cacheinstance->find(argsTuple);//查找缓存
-                    m_cacheend = m_cacheinstance->end();//更新迭代器
+            SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
+                TimeType m_nowtime = approximategetcurrenttime();//获取当前时间
+                ArgsType&& argsTuple = std::make_tuple(std::cref(args)...);//构造参数的tuple
+                if (LIKELY(m_cacheinstance->empty() ||!CompareTuple(staticargstuple,argsTuple)|| staticiter == m_cacheend)) {//前期不做时间判断
+                    auto _staticiter = m_cacheinstance->find(argsTuple);//查找缓存
+                    auto _m_cacheend = m_cacheinstance->end();//更新迭代器
+                    ScopeLock lock(m_mutex);//加锁
+                    staticiter = _staticiter;
+                    m_cacheend = _m_cacheend;
                     staticargstuple = argsTuple; // 更新静态参数
                 }
                 if (LIKELY(staticiter != m_cacheend)) {//如果找到了
                     auto&& valuepair = staticiter->second;//获取缓存的值
-                    if (LIKELY(valuepair.second > m_nowtime)) return valuepair.first;//如果缓存的时间大于当前时间直接返回
+                    if (LIKELY(valuepair.second > m_nowtime)) {
+                        return valuepair.first;//如果缓存的时间大于当前时间直接返回
+                    }
                 }
                 return asyncspdatecache(argsTuple); // 未找到则更新
             }
@@ -699,13 +705,13 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 std::thread([&]() {ScopeLock lock(m_mutex); m_cache->clear(); }).detach();//异步清空缓存 加锁是为了防止多线程同时操作
             }
-            inline void cleancache(const KeyType<Args...>& parameters) const noexcept {//清空指定的缓存 指定的参数必须是tuple
+            inline void cleancache(const ArgsType& parameters) const noexcept {//清空指定的缓存 指定的参数必须是tuple
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);
                 auto it = m_cache->find(parameters);
                 if (LIKELY(it != m_cache->end()))  m_cache->erase(it->first);
             }
-            inline void setcacheresettime(const KeyType<Args...>& parameters, TimeType cacheTime) const noexcept {//设置指定的参数的缓存的时间
+            inline void setcacheresettime(const ArgsType& parameters, TimeType cacheTime) const noexcept {//设置指定的参数的缓存的时间
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);
                 auto it = m_cache->find(parameters);
@@ -738,10 +744,18 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
                 while (file) {
-                    KeyType<Args...> key{};//临时构造一个tuple
+                    ArgsType key{};//临时构造一个tuple
                     ValueType value{};//临时构造一个pair
                     if (!ReadTupleFromFile(file, key) || !ReadPairFromFile(file, value)) continue;//读取tuple和pair
                     if (value.second > approximategetcurrenttime())m_cache->insert(std::make_pair(key, value));//仅当缓存的时间大于当前时间的时候插入
+                }
+                for (auto it = m_cache->begin(); it != m_cache->end(); ) {
+                    if (it->second.second < approximategetcurrenttime()) {
+                        it = m_cache->erase(it); // erase returns the next valid iterator
+                    }
+                    else {
+                        ++it; // only increment if not erased
+                    }
                 }
                 return true;
             }
@@ -756,12 +770,12 @@ namespace memoizationsearch {
             }
             friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction& func)noexcept {//重载输出流
                 AUTOLOG//自动记录日志
-                return os << func.m_cache->size() << std::endl;//输出缓存的大小（个数）
+                return  os<<func.m_cache->size() << std::endl;//输出缓存的大小（个数）
             }
             inline std::function<FuncType>* operator->()noexcept { AUTOLOG return &m_func; }//返回函数对象的指针
             inline bool empty()const noexcept { AUTOLOG return m_cache->empty(); }//判断缓存是否为空
             inline std::size_t size()const noexcept { AUTOLOG return m_cache->size(); }//返回缓存的大小
-            SAFE_BUFFER inline iterator operator[](const KeyType<Args...>& key)const noexcept {//重载下标操作符
+            SAFE_BUFFER inline iterator operator[](const ArgsType& key)const noexcept {//重载下标操作符
                 AUTOLOG//自动记录日志
                 if (m_cache)return  m_cache->find(key);//返回内容但是不检查是否过期
                 return m_cache->end();//没有找到返回末尾迭代器
@@ -813,7 +827,7 @@ namespace memoizationsearch {
             }
             inline bool savecache(const char* szFileName) noexcept {
                 AUTOLOG//自动记录日志
-                std::ofstream file(GetUniqueName(m_func,szFileName), std::ios::binary | std::ios::trunc);
+                std::ofstream file(GetUniqueName(m_func,szFileName), std::ios::binary |std::ios::out|std::ios::trunc);
                 if (!file.is_open() || !operator>>(file)) return false;
                 file.close();
                 return true;
@@ -839,7 +853,7 @@ namespace memoizationsearch {
             SAFE_BUFFER inline R& operator()() const noexcept {
                 AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//自动记录日志
                 if ((TimeType)m_cache.second > (TimeType)approximategetcurrenttime()) return m_cache.first;
-                return setcacheresettime(m_func(), (TimeType)(safeadd(approximategetcurrenttime(), m_cacheTime)));
+                return setcacheresettime(m_func(),(safeadd(approximategetcurrenttime(), m_cacheTime)));
             }
             inline void cleancache()const noexcept {
                 AUTOLOG//自动记录日志

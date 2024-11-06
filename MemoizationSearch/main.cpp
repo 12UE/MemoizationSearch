@@ -1,5 +1,4 @@
-﻿#include <iostream>
-#define DEBUG_LOG
+#include <iostream>
 #include"MemoizationSearch.h"
 
 #include <stddef.h>
@@ -33,7 +32,7 @@ static inline std::string WideStringToString(const std::wstring& wideString) {
     static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.to_bytes(wideString);
 }
-auto WideStringToStringCached = MakeCache(WideStringToString, INFINITYCACHE);//0xFFFF'FFFF'FFFF'FFFF代表有效期无限 永远也不会过期
+auto WideStringToStringCached = MakeCache(WideStringToString);//0xFFFF'FFFF'FFFF'FFFF代表有效期无限 永远也不会过期
 #include <chrono>
 #include <cmath>
 #include <vector>
@@ -69,7 +68,7 @@ INT64 TestSpeed(const PRE& pre, INT64 initcount = 1e+3) noexcept {
         double stddev = std::sqrt(sum_sq_diff / num_runs);
 
         // 判断是否达到稳定性（相对标准差小于 1%）
-        if ((stddev / avg_result) < 0.01 || total_time > max_total_time) {
+        if ((stddev / avg_result) < 0.1 || total_time > max_total_time) {
             return static_cast<INT64>(avg_result);
         }
 
@@ -172,7 +171,7 @@ template <typename T> struct DebugClass {
 #include <tuple>
 #include <unordered_map>
 #include <functional>
-
+#include <unordered_set>
 template<typename... Args>
 class Cache {
     using KeyType = std::tuple<Args...>;
@@ -227,6 +226,37 @@ bool compare_impl(Tuple&& t1, Tuple&& t2, std::index_sequence<I...>) {
 template <typename... Args>
 bool compare_tuples(std::tuple<Args...>&& t1, std::tuple<Args...>&& t2) {
     return compare_impl(std::forward<std::tuple<Args...>>(t1), std::forward<std::tuple<Args...>>(t2), std::make_index_sequence<sizeof...(Args)>());
+}
+class SimpleMutex {
+    std::atomic_flag locked = ATOMIC_FLAG_INIT;
+
+public:
+    SimpleMutex() {
+        lock();
+    }
+    ~SimpleMutex() {
+        unlock();
+    }
+    void lock() {
+        while (locked.test_and_set(std::memory_order_acquire)) {
+            // Busy-wait
+            std::this_thread::yield();
+        }
+    }
+
+    void unlock() {
+        locked.clear(std::memory_order_release);
+    }
+};
+void pirnthello() {
+    SimpleMutex mutex;
+    std::cout << "hello world" << std::endl;
+}
+static  auto program_start = std::chrono::system_clock::now().time_since_epoch();//程序开始的时间的时间戳
+static inline unsigned long approximategetcurrenttime() noexcept {
+    //AUTOLOG //自动记录日志
+    return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
+
 }
 int main() {
     //有参数的lamda的缓存版本
@@ -322,21 +352,11 @@ int main() {
     std::function<int(int, int)> func1 = [&obj, memfn](int x, int y) { return memfn(obj, x, y); };
     auto memcached = MakeCache(func1);
     std::cout<<memcached(6, 8)<<std::endl;
-
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
-    Cache<int, double> myCache;
-    std::cout << myCache.getValue(1, 2.3) << std::endl; 
-    
-#ifndef _DEBUG
-    std::cout << TestSpeed([&]() { fib(12); }) << std::endl;
-    
-#endif // !_DEBUG
-    std::cout << fib(12) << std::endl;
-    sub(5, 3);
-    auto tup = std::make_tuple(1, 2.5, std::string("hello"));
-    auto result = memoizationsearch::EachItem([](const auto& x) { return x + x; }, tup);
-
-    std::cout << std::get<0>(result) << ", " << std::get<1>(result) << ", " << std::get<2>(result) << std::endl;
+    auto speed=TestSpeed([]() { 
+        fib(2);
+        });
+	std::cout << speed << "/s" << std::endl;
     system("pause");
 }
