@@ -388,7 +388,6 @@ namespace memoizationsearch {
             std::replace(result.begin(), result.end(), '\\', '/');
             return result;
         }
-        bool DefaultFilterCallBack() { return true; }
         enum class CallType : unsigned char {
             cdeclcall = 0,//默认的调用约定
 #ifdef _WIN64
@@ -401,22 +400,12 @@ namespace memoizationsearch {
             mutable CallType m_callType;//函数的调用约定
             mutable TimeType m_cacheTime;//缓存的时间
             mutable std::recursive_mutex m_mutex;//递归的互斥量
-            std::vector<std::function<bool(void)>> m_FilerCallBacks;
             inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) { AUTOLOG };//默认构造函数
             inline  CachedFunctionBase(void* funcAddr, CallType type, TimeType cacheTime = MEMOIZATIONSEARCH) : m_funcAddr(funcAddr), m_callType(type), m_cacheTime(cacheTime) {
                 AUTOLOG
-                    m_FilerCallBacks.push_back(DefaultFilterCallBack);
             }
             inline virtual ~CachedFunctionBase(){ AUTOLOG }//析构函数自动记录日志
-            bool FilterCallBack() {
-                for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback())return false;
-                }
-                return true;
-            }
-            void AddFilterCallBacks(std::function<bool(void)>& callbacks) {
-                m_FilerCallBacks.emplace_back(callbacks);
-            }
+            
             inline void setcachetime(TimeType cacheTime) noexcept {//设置缓存的有效时间
                 AUTOLOG//自动记录日志
                 m_cacheTime = cacheTime;//设置缓存的时间
@@ -509,6 +498,7 @@ namespace memoizationsearch {
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
+            std::vector<std::function<bool(R&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType staticargstuple{};//记录上一次参数的tuple
@@ -519,9 +509,28 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
+            SAFE_BUFFER inline bool FilterCallBack(R& value) noexcept {
+                if (m_FilerCallBacks.empty()) return true;
+                for (const auto& callback : m_FilerCallBacks) {
+                    if (!callback(value))return false;
+                }
+                return true;
+            }
+            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks) {
+                m_FilerCallBacks.emplace_back(callbacks);
+                for (auto it = m_cache->begin(); it != m_cache->end();) {
+                    if (!callbacks((*it).second.first)) {
+                        it = m_cache->erase(it);
+                    }else {
+                        ++it;
+                    }
+                }
+                m_cacheend = m_cache->end();
+            }
             inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
+                m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置
                 if (others.m_cache &&!others.m_cache->empty())for (const auto& pair : *others.m_cache)m_cache->insert(pair);//拷贝所有的缓存
                 if (m_cache) {//如果缓存的内存不为空 
                     m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
@@ -541,7 +550,7 @@ namespace memoizationsearch {
                 for (auto& item : list)m_cache->insert(item);
                 if (m_cache) {
                     m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
-                    m_cache->insert(ArgsType{}, ValueType{ R{},INFINITYCACHE });//第一个位置不存东西
+                    m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
                     m_cacheinstance = m_cache.get();//缓存的实例
@@ -552,6 +561,7 @@ namespace memoizationsearch {
                 m_cache=std::move(other.m_cache);
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 if (m_cache) {//如果缓存的内存不为空
+                    m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//  静态迭代器 上一次的迭代器位置默认是末尾
                     m_cacheinstance = m_cache.get();//缓存的实例
@@ -565,6 +575,7 @@ namespace memoizationsearch {
                 m_funcAddr = others.m_funcAddr;//函数的地址赋值
                 others.m_funcAddr = 0;//置空
                 if (m_cache) {//如果缓存的内存不为空
+                    m_cache->insert(ArgsType{}, ValueType{ R{},INFINITYCACHE });//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
                     m_cacheinstance = m_cache.get();//缓存的实例
@@ -582,6 +593,7 @@ namespace memoizationsearch {
                 m_func = others.m_func;//函数对象赋值 
                 m_funcAddr = others.m_funcAddr;//函数的地址赋值
                 if (m_cache) {//如果缓存的内存不为空
+                    m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheinstance = m_cache.get();//缓存的实例
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
@@ -672,11 +684,14 @@ namespace memoizationsearch {
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
-                if (FilterCallBack()) {
+                if (FilterCallBack(ret)) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(approximategetcurrenttime(),m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
+                    if (m_cache->empty()) {
+                        m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));
+                    }
                     auto it = m_cache->begin(); // 取到迭代器
-                    retref = (R*)&(*it); // 取迭代器指向的元素的地址
+                    retref = &(*it).second.first; // 取迭代器指向的元素的地址
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cacheend;//更新静态迭代器
@@ -735,12 +750,17 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 if (!file.is_open()) return false;//如果文件没有打开返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                for (auto& pair : *m_cache)if (!WriteTupleToFile(file, pair.first) || !WritePairToFile(file, pair.second))continue;
+                for (auto& pair : *m_cache) {
+                    if (std::hasher(pair.second.first) == std::hasher(R{})) continue;
+                    if (!WriteTupleToFile(file, pair.first) || !WritePairToFile(file, pair.second)) {
+                        continue;
+                    }
+                }
                 return true;
             }
             inline bool operator<<(std::ifstream& file) noexcept {//从文件读取缓存
                 AUTOLOG//自动记录日志
-                if (!file.is_open()) return false;//如果文件没有打开返回false
+                if (!file.is_open()||file.eof()) return false;//如果文件没有打开返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
                 while (file) {
@@ -752,8 +772,7 @@ namespace memoizationsearch {
                 for (auto it = m_cache->begin(); it != m_cache->end(); ) {
                     if (it->second.second < approximategetcurrenttime()) {
                         it = m_cache->erase(it); // erase returns the next valid iterator
-                    }
-                    else {
+                    }else {
                         ++it; // only increment if not erased
                     }
                 }

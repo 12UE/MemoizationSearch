@@ -354,6 +354,7 @@ int main() {
     std::cout<<memcached(6, 8)<<std::endl;
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
+
     auto speed=TestSpeed([]() { 
         fib(2);
         });
