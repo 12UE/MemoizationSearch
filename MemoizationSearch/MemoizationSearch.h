@@ -177,10 +177,6 @@ namespace std {
     };
 }
 namespace memoizationsearch {
-    enum class ReserveStatus {
-        ReseveOld,
-        AbortOld
-    };
     template<typename T>class SingleTon {
         SingleTon(const SingleTon&) = delete; // É¾³ý¿½±´¹¹Ôìº¯Êý
         SingleTon& operator=(const SingleTon&) = delete;
@@ -519,9 +515,9 @@ namespace memoizationsearch {
                 }
                 return true;
             }
-            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks, ReserveStatus status =ReserveStatus::AbortOld) {
+            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks, bool ablortOld=true) {
                 m_FilerCallBacks.emplace_back(callbacks);
-                if (status == ReserveStatus::AbortOld) {
+                if (ablortOld) {
                     for (auto it = m_cache->begin(); it != m_cache->end();) {
                         if (!callbacks((*it).second.first)) {
                             it = m_cache->erase(it);
