@@ -16,7 +16,6 @@
 #include<iostream>
 #include<string>
 #endif
-#pragma once
 #include <array>
 #include <utility>
 #include <cstdarg>
@@ -178,6 +177,10 @@ namespace std {
     };
 }
 namespace memoizationsearch {
+    enum class ReserveStatus {
+        ReseveOld,
+        AbortOld
+    };
     template<typename T>class SingleTon {
         SingleTon(const SingleTon&) = delete; // 删除拷贝构造函数
         SingleTon& operator=(const SingleTon&) = delete;
@@ -516,16 +519,18 @@ namespace memoizationsearch {
                 }
                 return true;
             }
-            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks) {
+            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks, ReserveStatus status =ReserveStatus::AbortOld) {
                 m_FilerCallBacks.emplace_back(callbacks);
-                for (auto it = m_cache->begin(); it != m_cache->end();) {
-                    if (!callbacks((*it).second.first)) {
-                        it = m_cache->erase(it);
-                    }else {
-                        ++it;
+                if (status == ReserveStatus::AbortOld) {
+                    for (auto it = m_cache->begin(); it != m_cache->end();) {
+                        if (!callbacks((*it).second.first)) {
+                            it = m_cache->erase(it);
+                        }else {
+                            ++it;
+                        }
                     }
+                    m_cacheend = m_cache->end();
                 }
-                m_cacheend = m_cache->end();
             }
             inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
