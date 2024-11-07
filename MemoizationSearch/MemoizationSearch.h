@@ -498,7 +498,7 @@ namespace memoizationsearch {
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
-            std::vector<std::function<bool(R&)>> m_FilerCallBacks;
+            mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType staticargstuple{};//记录上一次参数的tuple
@@ -509,25 +509,58 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-            SAFE_BUFFER inline bool FilterCallBack(R& value) noexcept {
+            SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple) noexcept {
                 if (m_FilerCallBacks.empty()) return true;
                 for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback(value))return false;
+                    if (!callback(value, argsTuple))return false;
                 }
                 return true;
             }
-            void AddFilterCallBacks(const std::function<bool(R&)>& callbacks, bool ablortOld=true) {
+            [[nodiscard]]inline void* addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
+                AUTOLOG//自动记录日志
+                ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
-                if (ablortOld) {
-                    for (auto it = m_cache->begin(); it != m_cache->end();) {
-                        if (!callbacks((*it).second.first)) {
-                            it = m_cache->erase(it);
-                        }else {
-                            ++it;
-                        }
-                    }
-                    m_cacheend = m_cache->end();
+                if (!bReserverOld&& !m_cache->empty()) {
+                   for (auto it = m_cache->begin(); it != m_cache->end();) {
+                       if (!callbacks(it->second.first, it->first)) {
+                           it = m_cache->erase(it);
+                       }else {
+                           ++it;
+                       }
+                   }
                 }
+                return (void*) & callbacks;
+            }
+            bool removefiltercallbacks(void* callback) {
+                AUTOLOG//自动记录日志
+                ScopeLock lock(m_mutex);//加锁保证线程安全
+                auto it=std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
+                    if (&callbacks == callback) return true;
+                    return false;
+                });
+                if (it == m_FilerCallBacks.end()) return false;
+                m_FilerCallBacks.erase(it);
+                return true;
+            }
+            bool replacecallbacks(const std::function<bool(const R&, const ArgsType&)>& oldcallbacks, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
+                AUTOLOG//自动记录日志
+                ScopeLock lock(m_mutex);//加锁保证线程安全
+                auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
+                    if (&callback == &oldcallbacks) return true;
+                    return   false;
+                });
+                if (it == m_FilerCallBacks.end()) return false;//没找到老的
+                (*it) = newcallbacks;
+                return true;
+            }
+            std::function<bool(const R&, const ArgsType&)>* getfiltercallbacks(void* callback) {
+                AUTOLOG//自动记录日志
+                auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
+                    if (&callbacks == callback) return true;
+                    return false;
+                });
+                if (it == m_FilerCallBacks.end()) return nullptr;
+                return &(*it);
             }
             inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
@@ -685,14 +718,13 @@ namespace memoizationsearch {
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
-                if (FilterCallBack(ret)) {
+                if (filtercallback(ret, argsTuple)) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(approximategetcurrenttime(),m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
                     if (m_cache->empty()) {
                         m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));
                     }
-                    auto it = m_cache->begin(); // 取到迭代器
-                    retref = &(*it).second.first; // 取迭代器指向的元素的地址
+                    retref = &(*m_cache->begin()).second.first; // 取迭代器指向的元素的地址
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cache->find(argsTuple);
@@ -711,9 +743,7 @@ namespace memoizationsearch {
                 }
                 if (LIKELY(staticiter != m_cacheend)) {//如果找到了
                     auto&& valuepair = staticiter->second;//获取缓存的值
-                    if (LIKELY(valuepair.second > m_nowtime)) {
-                        return valuepair.first;//如果缓存的时间大于当前时间直接返回
-                    }
+                    if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回
                 }
                 return asyncspdatecache(argsTuple); // 未找到则更新
             }
@@ -757,7 +787,6 @@ namespace memoizationsearch {
                     }
                 }
                 file.flush();
-                //判断文件大小 等于0的时候删除文件
                 return true;
             }
             inline bool operator<<(std::ifstream& file) noexcept {//从文件读取缓存
@@ -992,3 +1021,4 @@ template<typename T, class F> inline auto CacheMemberFunction(T&& obj, F&& func,
     return MakeCacheEx(memoizationsearch::nonstd::ConvertMemberFunction(std::forward<T>(obj), std::forward<F>(func)), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//先转换为一般的函数在调用,有默认参数的函数写清楚是为了把validtime传递给他
 }
 #endif
+
