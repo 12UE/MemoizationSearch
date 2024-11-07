@@ -12,7 +12,7 @@
 #include <initializer_list>
 #include <type_traits>
 #include <limits> 
-#include <deque>
+#include <array>
 #ifdef _DEBUG
 #include<iostream>
 #include<string>
@@ -21,7 +21,7 @@
 #include <utility>
 #include <cstdarg>
 #include<algorithm>
-static constexpr size_t MAX_QUEUE_SIZE = 1000; // 或其他适当的值
+static constexpr size_t MAX_QUEUE_SIZE = 10; // 或其他适当的值
 using HCALLBACK= void*;
 namespace xorstr_impl {
 #ifdef _MSC_VER
@@ -504,7 +504,8 @@ namespace memoizationsearch {
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
-            mutable std::deque<R> staticRetValueque{};
+            mutable std::array <R,MAX_QUEUE_SIZE> staticRetValueque{};
+            size_t currentIndex = 0;
             mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
@@ -735,9 +736,6 @@ namespace memoizationsearch {
                     ScopeLock lock(m_mutex);//加锁
                     while (m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_cacheend = m_cacheinstance->end();//更新迭代器
-                    if (staticRetValueque.size() > MAX_QUEUE_SIZE) {//避免无限
-                        staticRetValueque.pop_front();
-                    }
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
@@ -745,8 +743,9 @@ namespace memoizationsearch {
                 if (LIKELY(filtercallback(ret, argsTuple, nowtime))) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
-                    staticRetValueque.push_back(ret);
-                    retref = std::addressof(staticRetValueque.back());
+                    staticRetValueque[currentIndex] = ret;
+                    retref = &staticRetValueque[currentIndex];
+                    currentIndex = (currentIndex + 1) % MAX_QUEUE_SIZE;
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cache->find(argsTuple);
