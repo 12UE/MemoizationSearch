@@ -12,7 +12,6 @@
 #include <initializer_list>
 #include <type_traits>
 #include <limits> 
-#include <array>
 #ifdef _DEBUG
 #include<iostream>
 #include<string>
@@ -20,7 +19,7 @@
 #include <array>
 #include <utility>
 #include <cstdarg>
-#include<algorithm>
+#include <algorithm>
 static constexpr size_t MAX_QUEUE_SIZE = 1024; // 或其他适当的值 迭代的最大深度
 using HCALLBACK= void*;
 namespace xorstr_impl {
