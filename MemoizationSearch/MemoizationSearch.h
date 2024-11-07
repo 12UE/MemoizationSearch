@@ -13,8 +13,8 @@
 #include <type_traits>
 #include <limits> 
 #ifdef _DEBUG
-#include<iostream>
-#include<string>
+#include <iostream>
+#include <string>
 #endif
 #include <array>
 #include <utility>
