@@ -336,7 +336,7 @@ namespace memoizationsearch {
         public:
             inline ObjectPool() : offset(0) {
                 AUTOLOG//自动记录日志
-                Size = (4 * 1024*1024 / sizeof(T)) * sizeof(T);//默认的大小是4KB的大小 n个T类型对象总大小为4KB
+                Size = (1024*sizeof(T) / sizeof(T)) * sizeof(T);//默认的大小是10MB的大小 n个T类型对象总大小为4KB
                 objectpool = new unsigned char[Size];//分配内存 分配失败new会自动抛出std::bad_alloc异常
                 memset(objectpool, 0, Size);//初始化内存
                 m_pool.reserve(Size);//map预留空间
