@@ -509,12 +509,31 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-            SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple) noexcept {
-                AUTOLOG//自动记录日志
-                if (m_FilerCallBacks.empty()) return true;
-                for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback(value, argsTuple))return false;
+            SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple,TimeType nowtime) noexcept {
+                AUTOLOG // 自动记录日志
+                static std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
+                if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
+                // 检查缓存中是否已有结果
+                auto it = resultcache.find(argsTuple);
+                if (it != resultcache.end()) {
+                    const auto& cached_result = it->second;
+                    // 如果缓存未过期
+                    if (cached_result.second > nowtime) {
+                        return cached_result.first; // 返回缓存结果
+                    }else {
+                        resultcache.erase(it); // 如果缓存过期，移除它
+                    }
                 }
+                // 执行过滤回调以获取新结果
+                for (const auto& callback : m_FilerCallBacks) {
+                    if (!callback(value, argsTuple)) {
+                        // 存储结果为 false，并设置过期时间
+                        resultcache[argsTuple] = { false, nowtime + m_cacheTime }; // 75 ms有效期
+                        return false;
+                    }
+                }
+                // 存储结果为 true，并设置过期时间
+                resultcache[argsTuple] = { true, nowtime + m_cacheTime }; // 75 ms有效期
                 return true;
             }
             [[nodiscard]]inline void* addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
@@ -522,17 +541,11 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
                 if (!bReserverOld&& !m_cache->empty()) {
-                   for (auto it = m_cache->begin(); it != m_cache->end();) {
-                       if (!callbacks(it->second.first, it->first)) {
-                           it = m_cache->erase(it);
-                       }else {
-                           ++it;
-                       }
-                   }
+                   for (auto it = m_cache->begin(); it != m_cache->end();it= (!callbacks(it->second.first, it->first))? m_cache->erase(it):++it) {}
                 }
                 return (void*) & callbacks;
             }
-            bool removefiltercallbacks(void* callback) {
+            SAFE_BUFFER inline bool removefiltercallbacks(void* callback) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto it=std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
@@ -543,7 +556,7 @@ namespace memoizationsearch {
                 m_FilerCallBacks.erase(it);
                 return true;
             }
-            bool replacecallbacks(const std::function<bool(const R&, const ArgsType&)>& oldcallbacks, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
+            SAFE_BUFFER inline bool replacecallbacks(const std::function<bool(const R&, const ArgsType&)>& oldcallbacks, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
@@ -554,7 +567,7 @@ namespace memoizationsearch {
                 (*it) = newcallbacks;
                 return true;
             }
-            std::function<bool(const R&, const ArgsType&)>* getfiltercallbacks(void* callback) {
+            SAFE_BUFFER inline std::function<bool(const R&, const ArgsType&)>* getfiltercallbacks(void* callback) {
                 AUTOLOG//自动记录日志
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
                     if (&callbacks == callback) return true;
@@ -563,7 +576,7 @@ namespace memoizationsearch {
                 if (it == m_FilerCallBacks.end()) return nullptr;
                 return &(*it);
             }
-            inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
+            SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置
@@ -720,8 +733,9 @@ namespace memoizationsearch {
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
-                if (filtercallback(ret, argsTuple)) {
-                    retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(approximategetcurrenttime(),m_cacheTime) }).first->second.first;//插入或者更新缓存
+                auto nowtime = approximategetcurrenttime();
+                if (filtercallback(ret, argsTuple, nowtime)) {
+                    retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
                     if (m_cache->empty()) {
                         m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));
