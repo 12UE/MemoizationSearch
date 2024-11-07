@@ -548,7 +548,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
-                if (!bReserverOld&& !m_cache->empty()) {
+                if (UNLIKELY(!bReserverOld&& !m_cache->empty())) {
                     auto nowtime = approximategetcurrenttime();
                    for (auto it = m_cache->begin(); it != m_cache->end();it= (!filtercallback(it->second.first, it->first, nowtime))? m_cache->erase(it):++it) {}
                 }
@@ -558,7 +558,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto it = getfiltercallbacks(callback);
-                if (it == m_FilerCallBacks.end()) return false;
+                if (UNLIKELY(it == m_FilerCallBacks.end())) return false;
                 m_FilerCallBacks.erase(it);
                 return true;
             }
@@ -567,7 +567,7 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto oldcallback = *getfiltercallbacks(hCallBack);
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
-                    if (&callback == &oldcallback) return true;
+                    if (UNLIKELY(&callback == &oldcallback)) return true;
                     return   false;
                 });
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
@@ -578,7 +578,7 @@ namespace memoizationsearch {
             SAFE_BUFFER inline auto getfiltercallbacks(HCALLBACK callback) {//因为指针返回空指针
                 AUTOLOG//自动记录日志
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto callbacks)->bool {
-                    if (&callbacks == callback) return true;
+                    if (UNLIKELY(&callbacks == callback)) return true;
                     return false;
                 });
             }
@@ -587,7 +587,7 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置
                 if (others.m_cache &&!others.m_cache->empty())for (const auto& pair : *others.m_cache)m_cache->insert(pair);//拷贝所有的缓存
-                if (m_cache) {//如果缓存的内存不为空 
+                if (LIKELY((bool)m_cache)) {//如果缓存的内存不为空 
                     m_cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾

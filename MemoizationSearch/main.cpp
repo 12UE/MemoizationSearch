@@ -352,6 +352,7 @@ int main() {
     //获取函数地址
     std::cout << &K32GetPerformanceInfoCaChe << std::endl;//转函数指
     auto funcptr=&K32GetPerformanceInfoCaChe;
+    std::cout <<funcptr << std::endl;
     std::cout << typeid(decltype(funcptr)).name() << std::endl;
     std::cout << "ProcessCount Raw:" << pi.ProcessCount << std::endl;
     //检验函数是否可调用
