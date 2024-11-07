@@ -83,7 +83,10 @@ namespace xorstr_impl {
 }  // namespace xorstr_impl
 #define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
   __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
-#define  MEMOIZATIONSEARCH 75//默认的缓存有效时间75ms
+float  MEMOIZATIONSEARCH = 75.0f;//默认的缓存有效时间75ms
+void SetGlobalDefaultCacheTime(float validTime) {
+    MEMOIZATIONSEARCH = validTime;
+}
 #ifdef _WIN64
 using TimeType = unsigned long long;
  auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//定义缓存的最大时间
@@ -502,6 +505,8 @@ namespace memoizationsearch {
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType staticargstuple{};//记录上一次参数的tuple
+            mutable R staticRetValue;
+            mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
             inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_cache->size() < others.m_cache->size(); }//比较缓存大小
             inline bool operator>(const CachedFunction& others) { AUTOLOG  return m_cache->size() > others.m_cache->size(); }//比较缓存大小
             inline bool operator<=(const CachedFunction& others) { AUTOLOG  return m_cache->size() <= others.m_cache->size(); }//比较缓存大小
@@ -511,7 +516,6 @@ namespace memoizationsearch {
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
             SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple,TimeType nowtime) noexcept {
                 AUTOLOG // 自动记录日志
-                static std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 // 检查缓存中是否已有结果
                 auto it = resultcache.find(argsTuple);
@@ -528,12 +532,12 @@ namespace memoizationsearch {
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        resultcache[argsTuple] = { false, nowtime + m_cacheTime }; // 75 ms有效期
+                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期的一半 奈奎斯特-香浓采样定理 频率翻倍时间一半
                         return false;
                     }
                 }
                 // 存储结果为 true，并设置过期时间
-                resultcache[argsTuple] = { true, nowtime + m_cacheTime }; // 75 ms有效期
+                resultcache[argsTuple] = { true, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期
                 return true;
             }
             [[nodiscard]]inline void* addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
@@ -541,7 +545,8 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
                 if (!bReserverOld&& !m_cache->empty()) {
-                   for (auto it = m_cache->begin(); it != m_cache->end();it= (!callbacks(it->second.first, it->first))? m_cache->erase(it):++it) {}
+                    auto nowtime = approximategetcurrenttime();
+                   for (auto it = m_cache->begin(); it != m_cache->end();it= (!filtercallback(it->second.first, it->first, nowtime))? m_cache->erase(it):++it) {}
                 }
                 return (void*) & callbacks;
             }
@@ -737,10 +742,8 @@ namespace memoizationsearch {
                 if (filtercallback(ret, argsTuple, nowtime)) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
-                    if (m_cache->empty()) {
-                        m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));
-                    }
-                    retref = &(*m_cache->begin()).second.first; // 取迭代器指向的元素的地址
+                    staticRetValue = ret;
+                    retref = &staticRetValue; // 取迭代器指向的元素的地址
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cache->find(argsTuple);
