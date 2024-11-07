@@ -370,8 +370,9 @@ int main() {
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
     auto callback =fib.addfiltercallbacks([&](auto ret, auto pack) {
-        return false;
+        return true;
     });
+    std::cout << "-----------------" << std::endl;
     std::cout << fib(10);
     system("pause");
 }

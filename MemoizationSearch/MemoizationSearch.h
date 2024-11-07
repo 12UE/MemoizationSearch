@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <type_traits>
 #include <limits> 
+#include <stack>
 #ifdef _DEBUG
 #include<iostream>
 #include<string>
@@ -20,6 +21,7 @@
 #include <utility>
 #include <cstdarg>
 #include<algorithm>
+static constexpr size_t MAX_QUEUE_SIZE = 1000; // 或其他适当的值
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -501,11 +503,11 @@ namespace memoizationsearch {
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
+            mutable std::deque<R> staticRetValueque{};
             mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType staticargstuple{};//记录上一次参数的tuple
-            mutable R staticRetValue;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
             inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_cache->size() < others.m_cache->size(); }//比较缓存大小
             inline bool operator>(const CachedFunction& others) { AUTOLOG  return m_cache->size() > others.m_cache->size(); }//比较缓存大小
@@ -532,7 +534,7 @@ namespace memoizationsearch {
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期的一半 奈奎斯特-香浓采样定理 频率翻倍时间一半
+                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期的一半 奈奎斯特-香浓采样定理 频率翻倍时间一
                         return false;
                     }
                 }
@@ -742,8 +744,11 @@ namespace memoizationsearch {
                 if (filtercallback(ret, argsTuple, nowtime)) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
-                    staticRetValue = ret;
-                    retref = &staticRetValue; // 取迭代器指向的元素的地址
+                    staticRetValueque.push_back(ret);
+                    retref = std::addressof(staticRetValueque.back());
+                    if (staticRetValueque.size() > MAX_QUEUE_SIZE) {//避免无限增长
+                        staticRetValueque.pop_front();
+                    }
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cache->find(argsTuple);
