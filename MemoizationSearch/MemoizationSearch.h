@@ -603,7 +603,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 for (auto& item : list)m_cache->insert(item);
-                if (m_cache) {
+                if (LIKELY((bool)m_cache)) {
                     m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
                     m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
@@ -615,7 +615,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 m_cache=std::move(other.m_cache);
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                if (m_cache) {//如果缓存的内存不为空
+                if (LIKELY((bool)m_cache)) {//如果缓存的内存不为空
                     m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//  静态迭代器 上一次的迭代器位置默认是末尾
@@ -629,7 +629,7 @@ namespace memoizationsearch {
                 m_func = std::move(others.m_func);//函数对象移动
                 m_funcAddr = others.m_funcAddr;//函数的地址赋值
                 others.m_funcAddr = 0;//置空
-                if (m_cache) {//如果缓存的内存不为空
+                if (LIKELY((bool)m_cache)) {//如果缓存的内存不为空
                     m_cache->insert(ArgsType{}, ValueType{ R{},INFINITYCACHE });//第一个位置不存东西
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
@@ -647,7 +647,7 @@ namespace memoizationsearch {
                 if (!others.m_cache->empty())for (const auto& pair : *others.m_cache) m_cache->insert(pair);//拷贝所有的缓存到新的缓存
                 m_func = others.m_func;//函数对象赋值 
                 m_funcAddr = others.m_funcAddr;//函数的地址赋值
-                if (m_cache) {//如果缓存的内存不为空
+                if (LIKELY((bool)m_cache)) {//如果缓存的内存不为空
                     m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_cacheinstance = m_cache.get();//缓存的实例
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
@@ -661,8 +661,7 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 if (!others.m_cache->empty()) {//其他的缓存不为空
                     for (const auto& pair : *others.m_cache){//遍历所有的缓存
-                        auto it = m_cache->find(pair.first);//查找是否存在
-                        if (it == m_cache->end())m_cache->insert(pair);//仅仅拷贝不存在的缓存
+                        if (m_cache->find(pair.first) == m_cache->end())m_cache->insert(pair);//仅仅拷贝不存在的缓存
                     }
                 }
                 auto nowtime = approximategetcurrenttime();//获取当前时间
