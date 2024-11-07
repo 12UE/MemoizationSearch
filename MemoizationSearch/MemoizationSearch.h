@@ -505,7 +505,7 @@ namespace memoizationsearch {
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             mutable std::array <R,MAX_QUEUE_SIZE> staticRetValueque{};
-            size_t currentIndex = 0;
+            mutable size_t currentIndex = 0;
             mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_cache->end(); }//返回缓存的末尾迭代器 用于遍历
