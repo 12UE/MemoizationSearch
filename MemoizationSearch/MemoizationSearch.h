@@ -87,6 +87,9 @@ namespace xorstr_impl {
 #define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
   __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
 float  MEMOIZATIONSEARCH = 75.0f;//默认的缓存有效时间75ms
+float GetGlobalDefaultCacheTime() {
+    return   MEMOIZATIONSEARCH;
+}
 void SetGlobalDefaultCacheTime(float validTime) {
     MEMOIZATIONSEARCH = validTime;
 }
