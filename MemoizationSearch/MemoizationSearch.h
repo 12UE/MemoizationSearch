@@ -20,8 +20,8 @@
 #include <utility>
 #include <cstdarg>
 #include <algorithm>
-static constexpr size_t MAX_QUEUE_SIZE = 1024; // 或其他适当的值 迭代的最大深度
-using HCALLBACK= void*;
+static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
+using HCALLBACK= std::size_t;
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -519,7 +519,7 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-            SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple,TimeType nowtime) noexcept {
+            SAFE_BUFFER inline bool filter(const R& value, const ArgsType& argsTuple,TimeType nowtime) noexcept {
                 AUTOLOG // 自动记录日志
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 // 检查缓存中是否已有结果
@@ -551,9 +551,9 @@ namespace memoizationsearch {
                 m_FilerCallBacks.emplace_back(callbacks);
                 if (UNLIKELY(!bReserverOld&& !m_cache->empty())) {
                     auto nowtime = approximategetcurrenttime();
-                   for (auto it = m_cache->begin(); it != m_cache->end();it= (!filtercallback(it->second.first, it->first, nowtime))? m_cache->erase(it):++it) {}
+                   for (auto it = m_cache->begin(); it != m_cache->end();it= (!filter(it->second.first, it->first, nowtime))? m_cache->erase(it):++it) {}
                 }
-                return (HCALLBACK) & callbacks;
+                return (HCALLBACK)std::hasher(callbacks);
             }
             SAFE_BUFFER inline bool removefiltercallbacks(HCALLBACK callback) {
                 AUTOLOG//自动记录日志
@@ -569,20 +569,18 @@ namespace memoizationsearch {
                 auto oldcallbackiter = getfiltercallbacks(hCallBack);
                 if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
                 auto oldcallback = *oldcallbackiter;
+                auto hashvalue = std::hasher(oldcallback);
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
-                    if (UNLIKELY(&callback == &oldcallback)) return true;
-                    return   false;
+                    return hashvalue == std::hasher(callback);
                 });
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
                 m_FilerCallBacks.erase(it);
                 std::ignore=addfiltercallbacks(newcallbacks, bReserveOld);
                 return true;
             }
-            SAFE_BUFFER inline auto getfiltercallbacks(HCALLBACK callback) {//因为指针返回空指针
-                AUTOLOG//自动记录日志
-                return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto callbacks)->bool {
-                    if (UNLIKELY(&callbacks == callback)) return true;
-                    return false;
+            auto getfiltercallbacks(HCALLBACK hcallback) {
+                return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
+                    return std::hasher(callback) == hcallback;
                 });
             }
             SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
@@ -742,7 +740,7 @@ namespace memoizationsearch {
                 std::thread(Async).detach();
                 R* retref = nullptr;
                 auto nowtime = approximategetcurrenttime();
-                if (LIKELY(filtercallback(ret, argsTuple, nowtime))) {
+                if (LIKELY(filter(ret, argsTuple, nowtime))) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
                     staticRetValueque[currentIndex] = ret;

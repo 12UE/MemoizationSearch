@@ -371,15 +371,10 @@ int main() {
     HCALLBACK callback = fib.addfiltercallbacks([](auto ret, auto pack) {
         return true;
     });
-    fib.replacecallbacks(callback, [](auto ret, auto pack) {
-        return false;
-    });
-    fib.removefiltercallbacks(callback);
     std::cout << "-----------------" << std::endl;
-    std::cout << fib(10)<<std::endl;
     std::cout << "-----------------" << std::endl;
     auto speed = TestSpeed([]() {
-        fib(10);
+        fib(2);
     });
     std::cout << speed << "/s" << std::endl; 
     std::cout << "-----------------" << std::endl;
