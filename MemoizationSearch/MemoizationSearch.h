@@ -21,7 +21,7 @@
 #include <utility>
 #include <cstdarg>
 #include<algorithm>
-static constexpr size_t MAX_QUEUE_SIZE = 1000; // 或其他适当的值 迭代的最大深度
+static constexpr size_t MAX_QUEUE_SIZE = 1024; // 或其他适当的值 迭代的最大深度
 using HCALLBACK= void*;
 namespace xorstr_impl {
 #ifdef _MSC_VER
@@ -336,7 +336,7 @@ namespace memoizationsearch {
         public:
             inline ObjectPool() : offset(0) {
                 AUTOLOG//自动记录日志
-                Size = (1024*sizeof(T) / sizeof(T)) * sizeof(T);//默认的大小是10MB的大小 n个T类型对象总大小为4KB
+                Size = (MAX_QUEUE_SIZE *sizeof(T) / sizeof(T)) * sizeof(T);//默认的大小是10MB的大小 n个T类型对象总大小为4KB
                 objectpool = new unsigned char[Size];//分配内存 分配失败new会自动抛出std::bad_alloc异常
                 memset(objectpool, 0, Size);//初始化内存
                 m_pool.reserve(Size);//map预留空间
