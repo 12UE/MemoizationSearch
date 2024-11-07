@@ -12,7 +12,7 @@
 #include <initializer_list>
 #include <type_traits>
 #include <limits> 
-#include <stack>
+#include <deque>
 #ifdef _DEBUG
 #include<iostream>
 #include<string>
@@ -22,6 +22,7 @@
 #include <cstdarg>
 #include<algorithm>
 static constexpr size_t MAX_QUEUE_SIZE = 1000; // 或其他适当的值
+using HCALLBACK= void*;
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -481,7 +482,7 @@ namespace memoizationsearch {
             } else {
                 equal=(std::hasher(elemA) == std::hasher(elemB));//非基本类型就对其求hash比较
             }
-            if (equal) {
+            if (LIKELY(equal)) {
                 if constexpr (I + 1 < std::tuple_size<std::decay_t<Tuple>>::value) {//判断是不是最后一个
                     return CompareTuple<I + 1>(tupleA, tupleB);//非最后一个就递归
                 }else {
@@ -521,10 +522,10 @@ namespace memoizationsearch {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 // 检查缓存中是否已有结果
                 auto it = resultcache.find(argsTuple);
-                if (it != resultcache.end()) {
+                if (LIKELY(it != resultcache.end())) {
                     const auto& cached_result = it->second;
                     // 如果缓存未过期
-                    if (cached_result.second > nowtime) {
+                    if (LIKELY(cached_result.second > nowtime)) {
                         return cached_result.first; // 返回缓存结果
                     }else {
                         resultcache.erase(it); // 如果缓存过期，移除它
@@ -534,15 +535,15 @@ namespace memoizationsearch {
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期的一半 奈奎斯特-香浓采样定理 频率翻倍时间一
+                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime) }; // 75 ms有效期的一半 一
                         return false;
                     }
                 }
-                // 存储结果为 true，并设置过期时间
+                // 存储结果为 true，并设置过期时间//
                 resultcache[argsTuple] = { true, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期
                 return true;
             }
-            [[nodiscard]]inline void* addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
+            [[nodiscard]]inline HCALLBACK addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
@@ -550,38 +551,34 @@ namespace memoizationsearch {
                     auto nowtime = approximategetcurrenttime();
                    for (auto it = m_cache->begin(); it != m_cache->end();it= (!filtercallback(it->second.first, it->first, nowtime))? m_cache->erase(it):++it) {}
                 }
-                return (void*) & callbacks;
+                return (HCALLBACK) & callbacks;
             }
-            SAFE_BUFFER inline bool removefiltercallbacks(void* callback) {
+            SAFE_BUFFER inline bool removefiltercallbacks(HCALLBACK callback) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                auto it=std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
-                    if (&callbacks == callback) return true;
-                    return false;
-                });
+                auto it = getfiltercallbacks(callback);
                 if (it == m_FilerCallBacks.end()) return false;
                 m_FilerCallBacks.erase(it);
                 return true;
             }
-            SAFE_BUFFER inline bool replacecallbacks(const std::function<bool(const R&, const ArgsType&)>& oldcallbacks, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
+            SAFE_BUFFER inline bool replacecallbacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
+                auto oldcallback = (*getfiltercallbacks(hCallBack));
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
-                    if (&callback == &oldcallbacks) return true;
+                    if (&callback == &oldcallback) return true;
                     return   false;
                 });
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
                 (*it) = newcallbacks;
                 return true;
             }
-            SAFE_BUFFER inline std::function<bool(const R&, const ArgsType&)>* getfiltercallbacks(void* callback) {
+            SAFE_BUFFER inline std::list<std::function<bool(const R&, const ArgsType&)>>::iterator getfiltercallbacks(HCALLBACK callback) {//因为指针返回空指针
                 AUTOLOG//自动记录日志
-                auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callbacks)->bool {
+                return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto callbacks)->bool {
                     if (&callbacks == callback) return true;
                     return false;
                 });
-                if (it == m_FilerCallBacks.end()) return nullptr;
-                return &(*it);
             }
             SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_func(others.m_func), m_cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
@@ -737,18 +734,18 @@ namespace memoizationsearch {
                     ScopeLock lock(m_mutex);//加锁
                     while (m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_cacheend = m_cacheinstance->end();//更新迭代器
+                    if (staticRetValueque.size() > MAX_QUEUE_SIZE) {//避免无限
+                        staticRetValueque.pop_front();
+                    }
 				};
                 std::thread(Async).detach();
                 R* retref = nullptr;
                 auto nowtime = approximategetcurrenttime();
-                if (filtercallback(ret, argsTuple, nowtime)) {
+                if (LIKELY(filtercallback(ret, argsTuple, nowtime))) {
                     retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
                 }else {
                     staticRetValueque.push_back(ret);
                     retref = std::addressof(staticRetValueque.back());
-                    if (staticRetValueque.size() > MAX_QUEUE_SIZE) {//避免无限增长
-                        staticRetValueque.pop_front();
-                    }
                 }
                 m_cacheend = m_cacheinstance->end();//更新迭代器
                 staticiter = m_cache->find(argsTuple);
