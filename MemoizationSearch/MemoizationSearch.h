@@ -21,7 +21,7 @@
 #include <utility>
 #include <cstdarg>
 #include<algorithm>
-static constexpr size_t MAX_QUEUE_SIZE = 10; // 或其他适当的值
+static constexpr size_t MAX_QUEUE_SIZE = 1000; // 或其他适当的值 迭代的最大深度
 using HCALLBACK= void*;
 namespace xorstr_impl {
 #ifdef _MSC_VER
@@ -336,7 +336,7 @@ namespace memoizationsearch {
         public:
             inline ObjectPool() : offset(0) {
                 AUTOLOG//自动记录日志
-                Size = (4 * 1024 / sizeof(T)) * sizeof(T);//默认的大小是4KB的大小 n个T类型对象总大小为4KB
+                Size = (4 * 1024*1024 / sizeof(T)) * sizeof(T);//默认的大小是4KB的大小 n个T类型对象总大小为4KB
                 objectpool = new unsigned char[Size];//分配内存 分配失败new会自动抛出std::bad_alloc异常
                 memset(objectpool, 0, Size);//初始化内存
                 m_pool.reserve(Size);//map预留空间
@@ -353,7 +353,6 @@ namespace memoizationsearch {
                 auto it = m_pool.find(seed);//查找是否存在
                 if (LIKELY(it != m_pool.end()))return *it->second;//如果存在直接返回
                 if (offset + sizeof(T) > Size) {//如果空间不够
-                    if(!objectpool) throw std::bad_alloc();//当内存不够的时候抛出异常
                     Size *=2;//扩大一倍
                     auto newpool = new unsigned char[Size];//分配新的空间
                     memcpy_s(newpool, Size, objectpool, Size / 2);//拷贝旧的数据
@@ -507,7 +506,7 @@ namespace memoizationsearch {
             using iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_cacheend;//缓存的末尾迭代器
             mutable iterator staticiter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
-            mutable std::array <R,MAX_QUEUE_SIZE> staticRetValueque{};
+            mutable R staticRetValueque[MAX_QUEUE_SIZE];
             mutable size_t currentIndex = 0;
             mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_cache->begin(); }//返回缓存的开始迭代器 用于遍历
@@ -568,7 +567,9 @@ namespace memoizationsearch {
             SAFE_BUFFER inline bool replacecallbacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                auto oldcallback = *getfiltercallbacks(hCallBack);
+                auto oldcallbackiter = getfiltercallbacks(hCallBack);
+                if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
+                auto oldcallback = *oldcallbackiter;
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
                     if (UNLIKELY(&callback == &oldcallback)) return true;
                     return   false;
