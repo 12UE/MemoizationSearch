@@ -267,21 +267,19 @@ bool CheckPtr(uintptr_t addr){
     if (mbi.Protect & PAGE_NOACCESS) {
         return false;
     }
-
     mbi.Protect &= ~PAGE_GUARD;
     mbi.Protect &= ~PAGE_NOCACHE;
     return mbi.Protect & PAGE_READONLY || mbi.Protect & PAGE_READWRITE || mbi.Protect & PAGE_WRITECOPY;
 }
 auto CheckPtrCache = MakeCache(CheckPtr);
 int main() {
-
     auto cachedlambda = MakeCache([](int a, int b) {
         std::cout << "foo" << "\n";
         return a + b;
-        });
+    });
     auto cachelambdafirst = MakeCache([](int a) {
         return a;
-        });
+    });
     //无参数的函数的缓存版
     auto noparam = MakeCache(foo1);
     auto noparam2 = MakeCache(foo1);
@@ -342,7 +340,7 @@ int main() {
     test.savecache("WideStringToStringCached");
     std::cout << "others----------------------" << std::endl;
 #ifdef _WIN64
-    auto K32GetPerformanceInfoCaChe = MakeCacheEx(K32GetPerformanceInfo, memoizationsearch::nonstd::CallType::stdcall,MEMOIZATIONSEARCH);//stdcall的调用方,默认是cdecl
+    auto K32GetPerformanceInfoCaChe = MakeCacheEx(K32GetPerformanceInfo, memoizationsearch::nonstd::CallType::stdcall, (TimeType)MEMOIZATIONSEARCH);//stdcall的调用方,默认是cdecl
     PERFORMANCE_INFORMATION pi{};
     //调用缓存函数
     K32GetPerformanceInfoCaChe(&pi, sizeof(pi));
@@ -371,18 +369,17 @@ int main() {
     std::cout << cachedprint() << std::endl;
     HCALLBACK callback = fib.addfiltercallbacks([](auto ret, auto pack) {
         return true;
-        });
+    });
     fib.replacecallbacks(callback, [](auto ret, auto pack) {
         return false;
-        });
+    });
     fib.removefiltercallbacks(callback);
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10)<<std::endl;
     std::cout << "-----------------" << std::endl;
     auto speed = TestSpeed([]() {
         fib(10);
-        });
-    
+    });
     std::cout << speed << "/s" << std::endl; 
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;

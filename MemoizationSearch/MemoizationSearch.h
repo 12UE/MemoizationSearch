@@ -389,7 +389,7 @@ namespace memoizationsearch {
         static inline SAFE_BUFFER  std::string PathTruncate(const std::string& path) noexcept {//将路径截断为最大长度为MEMOIZATIONSEARCH
             AUTOLOG//自动记录日志
             std::string result = path;
-            if (result.size() > MEMOIZATIONSEARCH)result.resize(MEMOIZATIONSEARCH);
+            if (result.size() > MEMOIZATIONSEARCH)result.resize((TimeType)MEMOIZATIONSEARCH);
             result.erase(std::remove_if(result.begin(), result.end(), [](unsigned char c) { return !std::isalnum(c) && c != '/'; }), result.end());
             std::replace(result.begin(), result.end(), '\\', '/');
             return result;
@@ -561,19 +561,20 @@ namespace memoizationsearch {
                 m_FilerCallBacks.erase(it);
                 return true;
             }
-            SAFE_BUFFER inline bool replacecallbacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks) {
+            SAFE_BUFFER inline bool replacecallbacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                auto oldcallback = (*getfiltercallbacks(hCallBack));
+                auto oldcallback = *getfiltercallbacks(hCallBack);
                 auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
                     if (&callback == &oldcallback) return true;
                     return   false;
                 });
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
-                (*it) = newcallbacks;
+                m_FilerCallBacks.erase(it);
+                std::ignore=addfiltercallbacks(newcallbacks, bReserveOld);
                 return true;
             }
-            SAFE_BUFFER inline std::list<std::function<bool(const R&, const ArgsType&)>>::iterator getfiltercallbacks(HCALLBACK callback) {//因为指针返回空指针
+            SAFE_BUFFER inline auto getfiltercallbacks(HCALLBACK callback) {//因为指针返回空指针
                 AUTOLOG//自动记录日志
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto callbacks)->bool {
                     if (&callbacks == callback) return true;
@@ -586,7 +587,7 @@ namespace memoizationsearch {
                 m_cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置
                 if (others.m_cache &&!others.m_cache->empty())for (const auto& pair : *others.m_cache)m_cache->insert(pair);//拷贝所有的缓存
                 if (m_cache) {//如果缓存的内存不为空 
-                    m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
+                    m_cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
                     m_cacheend = m_cache->end();//缓存的末尾迭代器
                     staticiter = m_cacheend;//静态迭代器 上一次的迭代器位置默认是末尾
                     m_cacheinstance = m_cache.get();//缓存的实例
@@ -719,7 +720,7 @@ namespace memoizationsearch {
                 ScopeLock lock(m_mutex);
                 m_cache = std::make_unique<CacheType>();
                 if (m_cache) {
-                    m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
+                    m_cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
                     m_cacheend = m_cache->end();
                     staticiter = m_cacheend;
                     m_cacheinstance = m_cache.get();
@@ -815,7 +816,7 @@ namespace memoizationsearch {
                 if (!file.is_open()) return false;//如果文件没有打开返回false
 				if (file.tellg() == 0) return false;//如果文件的位置是0返回false
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                m_cache->reserve(MEMOIZATIONSEARCH);//预先分配空间
+                m_cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
                 while (file) {
                     ArgsType key{};//临时构造一个tuple
                     ValueType value{};//临时构造一个pair
