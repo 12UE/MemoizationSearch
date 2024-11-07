@@ -510,6 +510,7 @@ namespace memoizationsearch {
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
             SAFE_BUFFER inline bool filtercallback(const R& value, const ArgsType& argsTuple) noexcept {
+                AUTOLOG//自动记录日志
                 if (m_FilerCallBacks.empty()) return true;
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple))return false;
@@ -685,12 +686,13 @@ namespace memoizationsearch {
                 }
                 return *this;//返回自己
             }
-            inline void setcachetime(TimeType cacheTime) noexcept {//设置缓存的时间
+            inline void setcachetime(TimeType cacheTime,bool reserveOld=true) noexcept {//设置缓存的时间
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//缓存的时间在1和INFINITYCACHE之间
-                auto offset = cacheTime - m_cacheTime;//计算时间的偏移
-                for (auto& item : *m_cache)item.second.second += offset;//更新所有的缓存的时间
+                if (!reserveOld) {
+                    cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//缓存的时间在1和INFINITYCACHE之间
+                    for (auto& item : *m_cache)item.second.second += cacheTime - m_cacheTime;//更新所有的缓存的时间
+                }
                 TimeType nowtime = approximategetcurrenttime();//获取当前时间
                 for (auto it = m_cache->begin(); it != m_cache->end(); it = (it->second.second < nowtime) ? m_cache->erase(it) : ++it) {}//删除过期的缓存
                 m_cacheTime = cacheTime;//设置缓存的时间
