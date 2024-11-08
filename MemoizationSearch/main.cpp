@@ -370,14 +370,15 @@ int main() {
     std::cout << cachedprint() << std::endl;
 
 	auto hCallBack=fib.AddFilterCallbacks([](auto ret, auto pack) {
-		return true;
+        
+		return false;
 	});
-    fib.GetFilterCacheStatusRef() = false;
+    fib.ClearFilterCallbacks();
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
     std::cout << "-----------------" << std::endl;
     auto speed = TestSpeed([]() {
-        fib(2);
+        fib(10);
     });
     std::cout << speed << "/s" << std::endl; 
     std::cout << "-----------------" << std::endl;
