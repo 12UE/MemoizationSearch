@@ -21,7 +21,7 @@
 #include <cstdarg>
 #include <algorithm>
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
-using HCALLBACK= std::size_t;
+using HCALLBACK= std::size_t;//回调句柄
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -86,11 +86,8 @@ namespace xorstr_impl {
 #define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
   __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
 float  MEMOIZATIONSEARCH = 75.0f;//默认的缓存有效时间75ms
-float GetGlobalDefaultCacheTime() {
+float& GetGlobalDefaultCacheTime() {
     return   MEMOIZATIONSEARCH;
-}
-void SetGlobalDefaultCacheTime(float validTime) {
-    MEMOIZATIONSEARCH = validTime;
 }
 #ifdef _WIN64
 using TimeType = unsigned long long;
@@ -529,12 +526,10 @@ namespace memoizationsearch {
                     // 如果缓存未过期
                     if (cached_result.second > nowtime) {
                         return cached_result.first; // 返回缓存结果
-                    }
-                    else {
+                    }else {
                         resultcache.erase(it); // 如果缓存过期，移除它
                     }
                 }
-
                 // 分别存储返回 false 的回调和 true 的回调
                 std::list<std::function<bool(const R&, const ArgsType&)>> falseCallbacks;
                 std::list<std::function<bool(const R&, const ArgsType&)>> trueCallbacks;
@@ -581,16 +576,18 @@ namespace memoizationsearch {
                 }
                 return (HCALLBACK)std::hasher(callbacks);
             }
-            SAFE_BUFFER inline bool removefiltercallbacks(HCALLBACK callback) {
+            SAFE_BUFFER inline bool removefiltercallbacks(HCALLBACK hcallback) {
                 AUTOLOG//自动记录日志
+                if (!hcallback) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                auto it = getfiltercallbacks(callback);
+                auto it = getfiltercallbacks(hcallback);
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false;
                 m_FilerCallBacks.erase(it);
                 return true;
             }
             SAFE_BUFFER inline bool replacecallbacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
+                if (!hCallBack) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto oldcallbackiter = getfiltercallbacks(hCallBack);
                 if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
@@ -605,6 +602,7 @@ namespace memoizationsearch {
                 return true;
             }
             auto getfiltercallbacks(HCALLBACK hcallback) {
+                if (!hcallback) return m_FilerCallBacks.end();//没有回调句柄
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
                     return std::hasher(callback) == hcallback;
                 });
