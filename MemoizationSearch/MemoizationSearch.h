@@ -214,7 +214,7 @@ namespace memoizationsearch {
         }
         SAFE_BUFFER inline static T& GetInstance() {
             AUTOLOGPERFIX(typeid(T).name())// 自动记录日志 
-            auto ptr = instancePtr.load();     // 原子加载指针
+            auto ptr = Construct();
             if (!ptr)throw std::runtime_error(xorstr("Instance not yet constructed!"));//抛出未构造异常
             return *ptr;                     // 返回对象的引用
         }
@@ -519,30 +519,56 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_cache->size() >= others.m_cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-            SAFE_BUFFER inline bool filter(const R& value, const ArgsType& argsTuple,TimeType nowtime) noexcept {
-                AUTOLOG // 自动记录日志
+            inline bool filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
+
                 // 检查缓存中是否已有结果
                 auto it = resultcache.find(argsTuple);
-                if (LIKELY(it != resultcache.end())) {
+                if (it != resultcache.end()) {
                     const auto& cached_result = it->second;
                     // 如果缓存未过期
-                    if (LIKELY(cached_result.second > nowtime)) {
+                    if (cached_result.second > nowtime) {
                         return cached_result.first; // 返回缓存结果
-                    }else {
+                    }
+                    else {
                         resultcache.erase(it); // 如果缓存过期，移除它
                     }
                 }
-                // 执行过滤回调以获取新结果
+
+                // 分别存储返回 false 的回调和 true 的回调
+                std::list<std::function<bool(const R&, const ArgsType&)>> falseCallbacks;
+                std::list<std::function<bool(const R&, const ArgsType&)>> trueCallbacks;
+
+                // 获取所有回调的结果
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) {
+                        falseCallbacks.push_back(callback); // 存储返回 false 的回调
+                    }
+                    else {
+                        trueCallbacks.push_back(callback); // 存储返回 true 的回调
+                    }
+                }
+
+                // 尝试之前返回 false 的回调
+                for (const auto& callback : falseCallbacks) {
+                    if (callback(value, argsTuple)) {
+                        // 存储结果为 true，并设置过期时间
+                        resultcache[argsTuple] = { true, nowtime + m_cacheTime };
+                        return true;
+                    }
+                }
+
+                // 如果没有找到 true 的结果，尝试之前返回 true 的回调
+                for (const auto& callback : trueCallbacks) {
+                    if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        resultcache[argsTuple] = { false, safeadd<TimeType>(nowtime , m_cacheTime) }; // 75 ms有效期的一半 一
+                        resultcache[argsTuple] = { false, nowtime + m_cacheTime };
                         return false;
                     }
                 }
-                // 存储结果为 true，并设置过期时间//
-                resultcache[argsTuple] = { true, safeadd<TimeType>(nowtime , m_cacheTime/2) }; // 75 ms有效期
+
+                // 存储结果为 true，并设置过期时间
+                resultcache[argsTuple] = { true, nowtime + m_cacheTime };
                 return true;
             }
             [[nodiscard]]inline HCALLBACK addfiltercallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
@@ -729,35 +755,36 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline R& asyncspdatecache(const ArgsType& argsTuple)noexcept {//异步更新缓存
                 AUTOLOG
-                auto ret = Apply(m_func, argsTuple);//调用函数
+                auto&& ret = Apply(m_func, argsTuple);//调用函数
                 ScopeLock lock(m_mutex);//加锁
-                static auto Async= [this]()->void {
+                static auto&& Async= [this]()->void {
                     AUTOLOGPERFIX(xorstr("INSERT"))//自动记录日志
                     ScopeLock lock(m_mutex);//加锁
                     while (m_cacheinstance->load_factor() >= 0.75f)m_cacheinstance->reserve(m_cacheinstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_cacheend = m_cacheinstance->end();//更新迭代器
 				};
-                std::thread(Async).detach();
-                R* retref = nullptr;
+                std::async(std::launch::async, Async);
+                R*&& retref = nullptr;
                 auto nowtime = approximategetcurrenttime();
+                m_cacheend = m_cacheinstance->end();//更新迭代器
                 if (LIKELY(filter(ret, argsTuple, nowtime))) {
-                    retref = &m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) }).first->second.first;//插入或者更新缓存
+                    auto iter= m_cacheinstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) });//插入或者更新缓存
+                    retref = &iter.first->second.first;
+                    staticiter = iter.first;
                 }else {
                     staticRetValueque[currentIndex] = ret;
-                    retref = &staticRetValueque[currentIndex];
-                    currentIndex = (currentIndex + 1) % MAX_QUEUE_SIZE;
+                    retref = &staticRetValueque[currentIndex++ % MAX_QUEUE_SIZE];
+                    staticiter = m_cacheend;
                 }
-                m_cacheend = m_cacheinstance->end();//更新迭代器
-                staticiter = m_cache->find(argsTuple);
                 return *retref;//返回缓存的引用
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
-                TimeType m_nowtime = approximategetcurrenttime();//获取当前时间
+                TimeType&& m_nowtime = approximategetcurrenttime();//获取当前时间
                 ArgsType&& argsTuple = std::make_tuple(std::cref(args)...);//构造参数的tuple
                 if (LIKELY(m_cacheinstance->empty() ||!CompareTuple(staticargstuple,argsTuple)|| staticiter == m_cacheend)) {//前期不做时间判断
-                    auto _staticiter = m_cacheinstance->find(argsTuple);//查找缓存
-                    auto _m_cacheend = m_cacheinstance->end();//更新迭代器
-                    ScopeLock lock(m_mutex);//加锁
+                    auto&& _staticiter = m_cacheinstance->find(argsTuple);//查找缓存
+                    auto&& _m_cacheend = m_cacheinstance->end();//更新迭代器
+                    ScopeLock lock(m_mutex);
                     staticiter = _staticiter;
                     m_cacheend = _m_cacheend;
                     staticargstuple = argsTuple; // 更新静态参数
