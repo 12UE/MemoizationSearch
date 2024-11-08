@@ -493,25 +493,25 @@ namespace memoizationsearch {
         //缓存的元素类型 由返回值和有效期组成的pair 有效期是一个返回值 有效期是一个时间戳 在这个时间戳之前是有效的
         template<typename R>using CacheitemType = std::pair<std::decay_t<R>, TimeType>;
         template<typename R, typename... Args>struct CachedFunction : public CachedFunctionBase {//具有参数的缓存函数是一个继承自CachedFunctionBase的类
-            using FuncType =  R(std::decay_t<Args>...);//声明函数类型
+            using   FuncType =  R(std::decay_t<Args>...);//声明函数类型
             mutable std::function<FuncType> m_Func;//函数对象
             using   ValueType = CacheitemType<R>;//缓存的元素类型
             using   ArgsType = KeyType<Args...>;
             using   CacheType = std::unordered_map<ArgsType, ValueType>;//一个哈希表存储缓存类型
+            using   CallFuncType = std::function<bool(const R&, const ArgsType&)>;
+            using   iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable std::unique_ptr<CacheType> m_Cache;//用智能指针 目的是为了不用手动释放内存 在对象析构的时候会自动释放
             mutable CacheType* m_CacheInstance = nullptr;//缓存的实例
-            using   iterator = typename CacheType::iterator;//缓存迭代器的类型
             mutable iterator m_CacheEnd;//缓存的末尾迭代器
             mutable iterator m_StaticIter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             mutable R m_StaticRetValueQue[MAX_QUEUE_SIZE];
             mutable size_t m_CurrentIndex = 0;
-            using   CallFuncType = std::function<bool(const R&, const ArgsType&)>;
             mutable std::list<CallFuncType> m_FilerCallBacks;
-            inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
-            inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
+            inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
+            inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
             inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_Cache->size() < others.m_Cache->size(); }//比较缓存大小
             inline bool operator>(const CachedFunction& others) { AUTOLOG  return m_Cache->size() > others.m_Cache->size(); }//比较缓存大小
             inline bool operator<=(const CachedFunction& others) { AUTOLOG  return m_Cache->size() <= others.m_Cache->size(); }//比较缓存大小
@@ -580,7 +580,7 @@ namespace memoizationsearch {
             [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-				if (!callbacks) return INVALID_CALLBACK_HANDLLE;//回调为空
+				if (!callbacks) return INVALID_CALLBACK_HANDLLE;//回调为空 callbacks是function对象
                 m_FilerCallBacks.emplace_back(callbacks);
                 if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
                     auto nowtime = ApproximateGetCurrentTime();
