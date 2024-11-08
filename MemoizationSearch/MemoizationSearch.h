@@ -592,14 +592,15 @@ namespace memoizationsearch {
                 }
                 return (HCALLBACK)std::hasher(callbacks);
             }
-            SAFE_BUFFER inline bool RemoveFilterCallbacks(HCALLBACK hcallback) {
-                AUTOLOG//自动记录日志
-                if (!ValidCallBackHandle(hcallback)) return false;//没有回调句柄
-                ScopeLock lock(m_mutex);//加锁保证线程安全
+            std::shared_ptr<CallFuncType> RemoveFilterCallbacks(HCALLBACK hcallback) {
+                AUTOLOG; // 自动记录日志
+                if (!ValidCallBackHandle(hcallback)) return nullptr; // 返回 nullptr 表示无效回调
+                ScopeLock lock(m_mutex); // 加锁保证线程安全
                 auto it = GetFilterCallbacks(hcallback);
-                if (UNLIKELY(it == m_FilerCallBacks.end())) return false;
-                m_FilerCallBacks.erase(it);
-                return true;
+                if (UNLIKELY(it == m_FilerCallBacks.end())) return nullptr; // 返回 nullptr 表示未找到回调
+                auto oldcallback = std::make_shared<CallFuncType>(*it); // 创建旧回调的智能指针
+                m_FilerCallBacks.erase(it); // 删除回调
+                return oldcallback; // 返回被删除的回调智能指针
             }
             SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
