@@ -598,10 +598,12 @@ namespace memoizationsearch {
                 m_FilerCallBacks.erase(it); // 删除回调
                 return oldcallback; // 返回被删除的回调智能指针
             }
-			SAFE_BUFFER inline void ClearFilterCallbacks() noexcept {
+			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
 				AUTOLOG; // 自动记录日志
 				ScopeLock lock(m_mutex); // 加锁保证线程安全
+                if (m_FilerCallBacks.empty()) return false;
 				m_FilerCallBacks.clear(); // 清空所有回调
+                return true;
 			}
             SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
                 AUTOLOG//自动记录日志
