@@ -627,6 +627,9 @@ namespace memoizationsearch {
                     return std::hasher(callback) == hcallback;
                 });
             }
+            SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
+                return m_FilerCallBacks;
+            }
             SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
