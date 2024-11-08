@@ -372,7 +372,7 @@ int main() {
 	auto hCallBack=fib.AddFilterCallbacks([](auto ret, auto pack) {
 		return true;
 	});
-    fib.GetFilterCacheStatus() = false;
+    fib.GetFilterCacheStatusRef() = false;
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
     std::cout << "-----------------" << std::endl;

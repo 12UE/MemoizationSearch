@@ -518,7 +518,7 @@ namespace memoizationsearch {
             inline auto operator&() const { AUTOLOG  return m_funcAddr; }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_Cache->size() >= others.m_Cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-            inline bool& GetFilterCacheStatus() {
+            inline bool& GetFilterCacheStatusRef() {
                 return m_FilterCacheStatus;
             }
             inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
