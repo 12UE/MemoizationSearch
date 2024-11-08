@@ -23,9 +23,7 @@
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
 using HCALLBACK= std::size_t;//回调句柄
 #define INVALID_CALLBACK_HANDLLE (HCALLBACK)-1
-inline bool CheckCallBackHandle(HCALLBACK  hCallBack) {
-    return   hCallBack!= INVALID_CALLBACK_HANDLLE&& hCallBack;
-}
+#define ValidCallBackHandle(hCallBack) (bool)(hCallBack!= INVALID_CALLBACK_HANDLLE)&&(hCallBack)
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -596,7 +594,7 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline bool RemoveFilterCallbacks(HCALLBACK hcallback) {
                 AUTOLOG//自动记录日志
-                if (!CheckCallBackHandle(hcallback)) return false;//没有回调句柄
+                if (!ValidCallBackHandle(hcallback)) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto it = GetFilterCallbacks(hcallback);
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false;
@@ -605,7 +603,7 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
-                if (!CheckCallBackHandle(hCallBack)) return false;//没有回调句柄
+                if (!ValidCallBackHandle(hCallBack)) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto oldcallbackiter = GetFilterCallbacks(hCallBack);
                 if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
@@ -620,7 +618,7 @@ namespace memoizationsearch {
                 return true;
             }
             auto GetFilterCallbacks(HCALLBACK hcallback) {
-                if (!CheckCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
+                if (!ValidCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
                     return std::hasher(callback) == hcallback;
                 });
@@ -628,7 +626,6 @@ namespace memoizationsearch {
             SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                m_Cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置
                 if (others.m_Cache &&!others.m_Cache->empty())for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//拷贝所有的缓存
                 if (LIKELY((bool)m_Cache)) {//如果缓存的内存不为空 
                     m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
@@ -659,7 +656,6 @@ namespace memoizationsearch {
                 m_Cache=std::move(other.m_Cache);
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 if (LIKELY((bool)m_Cache)) {//如果缓存的内存不为空
-                    m_Cache->insert(std::make_pair(ArgsType{}, ValueType{ R{},INFINITYCACHE }));//第一个位置不存东西
                     m_CacheEnd = m_Cache->end();//缓存的末尾迭代器
                     m_StaticIter = m_CacheEnd;//  静态迭代器 上一次的迭代器位置默认是末尾
                     m_CacheInstance = m_Cache.get();//缓存的实例
@@ -673,7 +669,6 @@ namespace memoizationsearch {
                 m_funcAddr = others.m_funcAddr;//函数的地址赋值
                 others.m_funcAddr = 0;//置空
                 if (LIKELY((bool)m_Cache)) {//如果缓存的内存不为空
-                    m_Cache->insert(ArgsType{}, ValueType{ R{},INFINITYCACHE });//第一个位置不存东西
                     m_CacheEnd = m_Cache->end();//缓存的末尾迭代器
                     m_StaticIter = m_CacheEnd;//静态迭代器 上一次的迭代器位置默认是末尾
                     m_CacheInstance = m_Cache.get();//缓存的实例
