@@ -288,12 +288,12 @@ int main() {
     std::cout << cachedlambda(35, 99) << "\n";//有参数的情况
 
     std::cout << cachedlambda(35, 99) << "\n";//有参数的情况
-    cachedlambda.cleancache(std::make_tuple(35, 99));//清除缓存
+    cachedlambda.CleanCache(std::make_tuple(35, 99));//清除缓存
     std::cout << cachedlambda(35, 64) << "\n";//有参数的情况
     //无参数函数的缓存版本
     std::cout << noparam() << "\n";
     std::cout << noparam() << "\n";
-    noparam.cleancache();//清除所有缓
+    noparam.CleanCache();//清除所有缓
     std::cout << noparam() << "\n";
     //无参数lambda的缓存版
     //输出函数类型
@@ -305,10 +305,10 @@ int main() {
     std::ofstream outfile("fibFibonacci", std::ios::binary|std::ios::trunc);
     fib >> outfile;//流式写入 从内存到文件
     //从文件读取缓
-    WideStringToStringCached.loadcache("WideStringToStringCached");
+    WideStringToStringCached.LoadCache("WideStringToStringCached");
     std::cout << WideStringToStringCached(L"what's happen?").c_str() << std::endl;
     std::cout << WideStringToStringCached(L"hello world").c_str() << std::endl;
-    std::cout<<"narro:"<<WideStringToStringCached.raw()<<std::endl;
+    std::cout<<"narro:"<<WideStringToStringCached.Raw()<<std::endl;
     //对象是可以移动的
     auto test = std::move(WideStringToStringCached);
     //对象是可以复制的
@@ -320,8 +320,8 @@ int main() {
     //重新转换为function
     std::function< std::string(const std::wstring&)> func = test;
     auto newcache = MakeCache(WideStringToString);//新创建的缓存函数里面没有东西
-    std::cout <<"CacheTime:" << newcache.getcachetime()<<"ms" << std::endl;
-    newcache.setcachetime(580);
+    std::cout <<"CacheTime:" << newcache.GetCacheTime()<<"ms" << std::endl;
+    newcache.SetCacheTime(580);
     newcache(L"WIDETONARRO");//newcache可以被调用WIDETONARRO是没被缓存过
     //把newcache的缓存内容弄到test里面
     Sleep(10);
@@ -337,7 +337,7 @@ int main() {
     std::cout << "print----------------------" << std::endl;
     //输出缓存的个
     std::cout << "count:" << test << std::endl;
-    test.savecache("WideStringToStringCached");
+    test.SaveCache("WideStringToStringCached");
     std::cout << "others----------------------" << std::endl;
 #ifdef _WIN64
     auto K32GetPerformanceInfoCaChe = MakeCacheEx(K32GetPerformanceInfo, memoizationsearch::nonstd::CallType::stdcall, (TimeType)MEMOIZATIONSEARCH);//stdcall的调用方,默认是cdecl
@@ -345,10 +345,10 @@ int main() {
     //调用缓存函数
     K32GetPerformanceInfoCaChe(&pi, sizeof(pi));
     //保存函数到文
-    K32GetPerformanceInfoCaChe.savecache("K32GetPerformanceInfoCache");
+    K32GetPerformanceInfoCaChe.SaveCache("K32GetPerformanceInfoCache");
     std::cout << "ProcessCount:" << pi.ProcessCount<< std::endl;
     //打印函数类型
-    std::cout << typeid(decltype(K32GetPerformanceInfoCaChe.m_func)).name() << std::endl;
+    std::cout << typeid(decltype(K32GetPerformanceInfoCaChe.m_Func)).name() << std::endl;
     //获取函数地址
     std::cout << &K32GetPerformanceInfoCaChe << std::endl;//转函数指
     auto funcptr=&K32GetPerformanceInfoCaChe;
@@ -368,12 +368,11 @@ int main() {
     std::cout<<memcached(6, 8)<<std::endl;
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
-    //HCALLBACK callback = fib.addfiltercallbacks([](auto ret, auto pack) {
-    //    return false;
-    //});
-	//fib.replacecallbacks(callback, [](auto ret, auto pack) {
-	//	return true;
-	//	});
+
+	auto hCallBack=fib.AddFilterCallbacks([](auto ret, auto pack) {
+		return true;
+	});
+    fib.GetFilterCacheStatus() = false;
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
     std::cout << "-----------------" << std::endl;
