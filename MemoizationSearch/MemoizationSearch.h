@@ -525,10 +525,10 @@ namespace memoizationsearch {
                 if (m_FilterCacheStatus) {
                     return FilterCache(value, argsTuple, nowtime);
                 }else {
-                    return FilterNoCache(value, argsTuple, nowtime);
+                    return FilterNoCache(value, argsTuple);
                 }
             }
-            inline bool FilterNoCache(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
+            inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) return false;
