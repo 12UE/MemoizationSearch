@@ -22,7 +22,10 @@
 #include <algorithm>
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
 using HCALLBACK= std::size_t;//回调句柄
-#define INVALID_CALLBACK_HANDLLE (HCALLBACK)-1;
+#define INVALID_CALLBACK_HANDLLE (HCALLBACK)-1
+inline bool CheckCallBackHandle(HCALLBACK  hCallBack) {
+    return   hCallBack!= INVALID_CALLBACK_HANDLLE&& hCallBack;
+}
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -505,7 +508,8 @@ namespace memoizationsearch {
             mutable iterator m_StaticIter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             mutable R m_StaticRetValueQue[MAX_QUEUE_SIZE];
             mutable size_t m_CurrentIndex = 0;
-            mutable std::list<std::function<bool(const R&, const ArgsType&)>> m_FilerCallBacks;
+            using CallFuncType = std::function<bool(const R&, const ArgsType&)>;
+            mutable std::list<CallFuncType> m_FilerCallBacks;
             inline iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
@@ -549,8 +553,8 @@ namespace memoizationsearch {
                     }
                 }
                 // 分别存储返回 false 的回调和 true 的回调
-                std::list<std::function<bool(const R&, const ArgsType&)>> falseCallbacks;
-                std::list<std::function<bool(const R&, const ArgsType&)>> trueCallbacks;
+                std::list<CallFuncType> falseCallbacks;
+                std::list<CallFuncType> trueCallbacks;
                 // 获取所有回调的结果
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback(value, argsTuple)) {
@@ -580,7 +584,7 @@ namespace memoizationsearch {
                 resultcache[argsTuple] = { true, nowtime + m_cacheTime };
                 return true;
             }
-            [[nodiscard]]inline HCALLBACK AddFilterCallbacks(const std::function<bool(const R&,const ArgsType&)>& callbacks,bool bReserverOld=true) {
+            [[nodiscard]]inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true) {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 m_FilerCallBacks.emplace_back(callbacks);
@@ -592,16 +596,16 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline bool RemoveFilterCallbacks(HCALLBACK hcallback) {
                 AUTOLOG//自动记录日志
-                if (!hcallback) return false;//没有回调句柄
+                if (!CheckCallBackHandle(hcallback)) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto it = GetFilterCallbacks(hcallback);
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false;
                 m_FilerCallBacks.erase(it);
                 return true;
             }
-            SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const std::function<bool(const R&, const ArgsType&)>& newcallbacks,bool bReserveOld=true) {
+            SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true) {
                 AUTOLOG//自动记录日志
-                if (!hCallBack) return false;//没有回调句柄
+                if (!CheckCallBackHandle(hCallBack)) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto oldcallbackiter = GetFilterCallbacks(hCallBack);
                 if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
@@ -616,7 +620,7 @@ namespace memoizationsearch {
                 return true;
             }
             auto GetFilterCallbacks(HCALLBACK hcallback) {
-                if (!hcallback) return m_FilerCallBacks.end();//没有回调句柄
+                if (!CheckCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
                     return std::hasher(callback) == hcallback;
                 });
