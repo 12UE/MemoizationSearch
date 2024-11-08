@@ -524,11 +524,7 @@ namespace memoizationsearch {
                 return m_FilterCacheStatus;
             }
             inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
-                if (LIKELY(m_FilterCacheStatus)) {
-                    return FilterCache(value, argsTuple, nowtime);
-                }else {
-                    return FilterNoCache(value, argsTuple);
-                }
+				return (m_FilterCacheStatus) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
             }
             inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
@@ -618,7 +614,7 @@ namespace memoizationsearch {
                 std::ignore=AddFilterCallbacks(newcallbacks, bReserveOld);
                 return true;
             }
-            auto GetFilterCallbacks(HCALLBACK hcallback) {
+            SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
                 if (!ValidCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
                     return std::hasher(callback) == hcallback;
