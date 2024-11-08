@@ -522,7 +522,7 @@ namespace memoizationsearch {
                 return m_FilterCacheStatus;
             }
             inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
-                if (m_FilterCacheStatus) {
+                if (LIKELY(m_FilterCacheStatus)) {
                     return FilterCache(value, argsTuple, nowtime);
                 }else {
                     return FilterNoCache(value, argsTuple);
