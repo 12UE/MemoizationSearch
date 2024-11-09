@@ -370,12 +370,9 @@ int main() {
     std::cout << cachedprint() << std::endl;
     fib(2);
 	auto hCallBack=fib.AddFilterCallbacks([](auto ret, auto pack) {
-        
 		return false;
-	},false);
-	fib.ChangeFilterCallBacks(hCallBack, [](auto ret, auto pack) {
-		return true;
-		});
+	});
+    fib.GetFilterCacheStatusRef() = false;
     auto pack=fib.GetRef(10);
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
