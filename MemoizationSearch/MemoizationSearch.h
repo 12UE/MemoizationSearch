@@ -1,3 +1,26 @@
+/*
+ * File name: MemorizationSearch.h
+ * Copyright (C) 2024 12UE
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Author: 12UE
+ * Date: 2024-11-09
+ * Location: Fuzhou, Fujian, China
+ * Email: 1258432472@qq.com
+ */
 #ifndef  MEMOIZATIONSEARCH
 #include <iostream>
 #include <functional>
@@ -21,7 +44,7 @@
 #include <cstdarg>
 #include <algorithm>
 template<typename T>
-T getRandom(T min, T max) {
+static T getRandom(T min, T max) {
     static std::random_device rd;  // 用于获取随机种子
     static std::mt19937 gen(rd()); // Mersenne Twister 生成器
     if constexpr (std::is_integral_v<T>) {
@@ -604,13 +627,14 @@ namespace memoizationsearch {
                 }
                 return (HCALLBACK)randnumber;
             }
-            SAFE_BUFFER inline bool DeleteFilterCallbacks(HCALLBACK hcallback) noexcept {
+            SAFE_BUFFER inline bool DeleteFilterCallbacks(HCALLBACK& hcallback) noexcept {
                 AUTOLOG; // 自动记录日志
                 if (!ValidCallBackHandle(hcallback)) return false; // 返回 nullptr 表示无效回调
                 ScopeLock lock(m_mutex); // 加锁保证线程安全
 				auto it = GetFilterCallbacks(hcallback);//查找m_FilerCallBacks中的回调
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false; // 返回 nullptr 表示未找到回调
                 m_FilerCallBacks.erase(it); // 删除回调
+                hcallback = INVALID_CALLBACK_HANDLLE;
                 return true; // 返回被删除的回调智能指针
             }
 			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
@@ -803,7 +827,7 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
                 TimeType&& m_nowtime = ApproximateGetCurrentTime();//获取当前时间
-                ArgsType&& argsTuple = std::make_tuple(std::cref(args)...);//构造参数的tuple
+                ArgsType&& argsTuple = std::forward_as_tuple(std::cref(args)...);//构造参数的tuple
                 if (LIKELY(m_CacheInstance->empty() ||!CompareTuple(m_StaticArgsTuple,argsTuple)|| m_StaticIter == m_CacheEnd)) {//前期不做时间判断
                     auto&& _staticiter = m_CacheInstance->find(argsTuple);//查找缓存
                     auto&& _m_cacheend = m_CacheInstance->end();//更新迭代器
@@ -897,10 +921,10 @@ namespace memoizationsearch {
             inline std::function<FuncType>* operator->()noexcept { AUTOLOG return &m_Func; }//返回函数对象的指针
             inline bool empty()const noexcept { AUTOLOG return m_Cache->empty(); }//判断缓存是否为空
             inline std::size_t size()const noexcept { AUTOLOG return m_Cache->size(); }//返回缓存的大小
-            SAFE_BUFFER inline iterator operator[](const ArgsType& key)const noexcept {//重载下标操作符
+            SAFE_BUFFER inline iterator GetRef(const Args&...args)const noexcept {//重载下标操作符
                 AUTOLOG//自动记录日志
-                if (m_Cache)return  m_Cache->find(key);//返回内容但是不检查是否过期
-                return m_Cache->end();//没有找到返回末尾迭代器
+                auto key = std::forward_as_tuple(std::cref(args)...);
+                return  m_Cache->find(key);//返回内容但是不检查是否过期
             }
         };
         template<typename R> struct CachedFunction<R> : public CachedFunctionBase {//没有参数的缓存函数是一个继承自CachedFunctionBase的类
@@ -990,6 +1014,9 @@ namespace memoizationsearch {
             inline std::size_t size()const noexcept { 
                 AUTOLOG//自动记录日志
                 return 1; //函数只有一个缓存
+            }
+            inline CacheitemType<R>& GetRef() {
+                return m_Cache;
             }
         };
         //萃取函数的返回值和参数

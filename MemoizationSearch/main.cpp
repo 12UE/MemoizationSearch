@@ -376,6 +376,7 @@ int main() {
 	fib.ChangeFilterCallBacks(hCallBack, [](auto ret, auto pack) {
 		return true;
 		});
+    auto pack=fib.GetRef(10);
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
     auto callbackinstance = fib.GetFilterCallbacks(hCallBack);
