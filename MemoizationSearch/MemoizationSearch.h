@@ -599,7 +599,7 @@ namespace memoizationsearch {
                 for (const auto& callback : falseCallbacks) {
                     if (callback(value, argsTuple)) {
                         // 存储结果为 true，并设置过期时间
-                        m_FilterResultCache[argsTuple] = { true, nowtime + m_cacheTime };
+                        m_FilterResultCache[argsTuple] = { true,safeadd<TimeType>(nowtime, m_cacheTime) };
                         return true;
                     }
                 }
@@ -607,12 +607,12 @@ namespace memoizationsearch {
                 for (const auto& callback : trueCallbacks) {
                     if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        m_FilterResultCache[argsTuple] = { false, nowtime + m_cacheTime };
+                        m_FilterResultCache[argsTuple] = { false, safeadd<TimeType>(nowtime, m_cacheTime) };
                         return false;
                     }
                 }
                 // 存储结果为 true，并设置过期时间
-                m_FilterResultCache[argsTuple] = { true, nowtime + m_cacheTime };
+                m_FilterResultCache[argsTuple] = { true, safeadd<TimeType>(nowtime, m_cacheTime) };
                 return true;
             }
             [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
