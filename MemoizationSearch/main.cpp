@@ -373,7 +373,9 @@ int main() {
         
 		return false;
 	});
-    fib.ClearFilterCallbacks();
+	fib.ChangeCallBacks(hCallBack, [](auto ret, auto pack) {
+		return true;
+		});
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
     std::cout << "-----------------" << std::endl;

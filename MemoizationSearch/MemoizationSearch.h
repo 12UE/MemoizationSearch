@@ -20,6 +20,19 @@
 #include <utility>
 #include <cstdarg>
 #include <algorithm>
+template<typename T>
+T getRandom(T min, T max) {
+    static std::random_device rd;  // 用于获取随机种子
+    static std::mt19937 gen(rd()); // Mersenne Twister 生成器
+    if constexpr (std::is_integral_v<T>) {
+        std::uniform_int_distribution<T> dis(min, max);
+        return dis(gen);
+    }
+    else {
+        std::uniform_real_distribution<T> dis(min, max);
+        return dis(gen);
+    }
+}
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
 using HCALLBACK = std::size_t;//回调句柄 不用手动释放
 #define INVALID_CALLBACK_HANDLLE (HCALLBACK)-1//无效的回调句柄
@@ -506,7 +519,7 @@ namespace memoizationsearch {
             mutable iterator m_StaticIter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             mutable R m_StaticRetValueQue[MAX_QUEUE_SIZE];
             mutable size_t m_CurrentIndex = 0;
-            mutable std::list<CallFuncType> m_FilerCallBacks;
+            mutable std::list<std::pair<CallFuncType,std::size_t>> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
@@ -528,7 +541,7 @@ namespace memoizationsearch {
             SAFE_BUFFER inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback(value, argsTuple)) return false;
+                    if (!callback.first(value, argsTuple)) return false;
                 }
                 return true;
             }
@@ -550,11 +563,11 @@ namespace memoizationsearch {
                 std::list<CallFuncType> trueCallbacks;
                 // 获取所有回调的结果
                 for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback(value, argsTuple)) {
-                        falseCallbacks.push_back(callback); // 存储返回 false 的回调
+                    if (!callback.first(value, argsTuple)) {
+                        falseCallbacks.push_back(callback.first); // 存储返回 false 的回调
                     }
                     else {
-                        trueCallbacks.push_back(callback); // 存储返回 true 的回调
+                        trueCallbacks.push_back(callback.first); // 存储返回 true 的回调
                     }
                 }
                 // 尝试之前返回 false 的回调
@@ -581,12 +594,18 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 				if (!callbacks) return INVALID_CALLBACK_HANDLLE;//回调为空 callbacks是function对象
-                m_FilerCallBacks.emplace_back(callbacks);
+                auto randnumber = getRandom<std::size_t>(0, INFINITYCACHE);
+                while (std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
+                    return callback.second == randnumber;
+                }) != m_FilerCallBacks.end()) {
+                    randnumber = getRandom<std::size_t>(0, INFINITYCACHE);//一直循环到不重复为止
+                }
+                m_FilerCallBacks.emplace_back(std::make_pair( callbacks,randnumber ));
                 if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
                     auto nowtime = ApproximateGetCurrentTime();
                    for (auto it = m_Cache->begin(); it != m_Cache->end();it= (!Filter(it->second.first, it->first, nowtime))? m_Cache->erase(it):++it) {}
                 }
-                return (HCALLBACK)std::hasher(callbacks);
+                return (HCALLBACK)randnumber;
             }
             SAFE_BUFFER inline std::shared_ptr<CallFuncType> RemoveFilterCallbacks(HCALLBACK hcallback) noexcept {
                 AUTOLOG; // 自动记录日志
@@ -605,26 +624,20 @@ namespace memoizationsearch {
 				m_FilerCallBacks.clear(); // 清空所有回调
                 return true;
 			}
-            SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
+            SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 if (!ValidCallBackHandle(hCallBack)|| !newcallbacks) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-                auto oldcallbackiter = GetFilterCallbacks(hCallBack);
-                if (oldcallbackiter ==m_FilerCallBacks.end() ) return false;
-                auto oldcallback = *oldcallbackiter;
-                auto hashvalue = std::hasher(oldcallback);
-                auto it = std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](auto& callback) {
-                    return hashvalue == std::hasher(callback);
-                });
+				auto it = GetFilterCallbacks(hCallBack);//获取回调的迭代器
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
                 m_FilerCallBacks.erase(it);
-                std::ignore=AddFilterCallbacks(newcallbacks, bReserveOld);
+                hCallBack =AddFilterCallbacks(newcallbacks, bReserveOld);
                 return true;
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
                 if (!ValidCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
                 return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
-                    return std::hasher(callback) == hcallback;
+                    return callback.second == hcallback;
                 });
             }
             SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
