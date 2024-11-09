@@ -825,13 +825,12 @@ namespace memoizationsearch {
                 R*&& retref = nullptr;
                 auto nowtime = ApproximatelyGetCurrentTime();
                 m_CacheEnd = m_CacheInstance->end();//更新迭代器
-                if (!m_oldResult.empty())m_oldResult.pop();
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
                     retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
                 }else {
-                    m_oldResult.push(ret);
+                    m_oldResult.push(ret);//因为函数体可能递归 所以要临时存值
                     retref = &m_oldResult.top();
                     m_StaticIter = m_CacheEnd;
                 }
@@ -852,6 +851,7 @@ namespace memoizationsearch {
                     auto&& valuepair = m_StaticIter->second;//获取缓存的值
                     if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回
                 }
+                if (m_oldResult.size()>1)m_oldResult.pop();
                 return AsyncsUpdateCache(argsTuple); // 未找到则更新
             }
             inline void CleanCache() const noexcept { 
