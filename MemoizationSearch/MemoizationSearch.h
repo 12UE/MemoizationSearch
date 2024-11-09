@@ -540,8 +540,6 @@ namespace memoizationsearch {
             mutable CacheType* m_CacheInstance = nullptr;//缓存的实例
             mutable iterator m_CacheEnd;//缓存的末尾迭代器
             mutable iterator m_StaticIter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
-            mutable R m_StaticRetValueQue[MAX_QUEUE_SIZE];
-            mutable size_t m_CurrentIndex = 0;
             mutable std::unordered_map<HCALLBACK, CallFuncType> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
@@ -825,8 +823,7 @@ namespace memoizationsearch {
                     retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
                 }else {
-                    m_StaticRetValueQue[m_CurrentIndex] = ret;
-                    retref = &m_StaticRetValueQue[m_CurrentIndex++ % MAX_QUEUE_SIZE];//因为性能原因没返回只能指针
+                    retref = std::make_shared<R>(ret).get();
                     m_StaticIter = m_CacheEnd;
                 }
                 return *retref;//返回缓存的引用
@@ -929,7 +926,7 @@ namespace memoizationsearch {
             inline std::size_t size()const noexcept { AUTOLOG return m_Cache->size(); }//返回缓存的大小
             SAFE_BUFFER inline iterator GetRef(const Args&...args)const noexcept {//重载下标操作符
                 AUTOLOG//自动记录日志
-                auto key = std::forward_as_tuple(std::cref(args)...);
+                auto&& key = std::forward_as_tuple(std::cref(args)...);
                 return  m_Cache->find(key);//返回内容但是不检查是否过期
             }
         };
