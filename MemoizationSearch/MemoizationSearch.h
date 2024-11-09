@@ -821,7 +821,7 @@ namespace memoizationsearch {
                 auto nowtime = ApproximateGetCurrentTime();
                 m_CacheEnd = m_CacheInstance->end();//更新迭代器
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
-                    auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime) });//插入或者更新缓存
+                    auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
                     retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
                 }else {
