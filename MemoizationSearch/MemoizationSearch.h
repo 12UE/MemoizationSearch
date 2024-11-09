@@ -590,8 +590,7 @@ namespace memoizationsearch {
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback.second(value, argsTuple)) {
                         falseCallbacks.push_back(callback.second); // 存储返回 false 的回调
-                    }
-                    else {
+                    }else {
                         trueCallbacks.push_back(callback.second); // 存储返回 true 的回调
                     }
                 }
@@ -626,7 +625,7 @@ namespace memoizationsearch {
                 m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
                 if (UNLIKELY(!bReserverOld)) {
                     auto nowtime = ApproximateGetCurrentTime();
-                   for (auto it = m_Cache->begin(); it != m_Cache->end();it= (!Filter(it->second.first, it->first, nowtime))? m_Cache->erase(it):++it) {}
+                    for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
                 }
                 return (HCALLBACK)randnumber;
             }
@@ -647,14 +646,17 @@ namespace memoizationsearch {
 				m_FilerCallBacks.clear(); // 清空所有回调
                 return true;
 			}
-            SAFE_BUFFER inline bool ChangeFilterCallBacks(HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
+            SAFE_BUFFER inline bool ChangeFilterCallBacks(const HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 if (!ValidCallBackHandle(hCallBack)|| !newcallbacks) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 				auto it = GetFilterCallbacks(hCallBack);//获取回调的迭代器
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
-                m_FilerCallBacks.erase(it);
-                hCallBack =AddFilterCallbacks(newcallbacks, bReserveOld);
+                it->second = newcallbacks;
+                if (UNLIKELY(!bReserveOld)) {
+                    auto nowtime = ApproximateGetCurrentTime();
+                    for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
+                }
                 return true;
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
