@@ -44,6 +44,7 @@
 #include <utility>
 #include <cstdarg>
 #include <algorithm>
+#include <stack>
 template<typename T>
 static T getRandom(T min, T max) {
     static std::random_device rd;  // 用于获取随机种子
@@ -544,6 +545,7 @@ namespace memoizationsearch {
             mutable std::unordered_map<HCALLBACK, CallFuncType> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
+            mutable std::stack<R> m_oldResult;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
             inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
@@ -827,8 +829,10 @@ namespace memoizationsearch {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
                     retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
+                    if (!m_oldResult.empty())m_oldResult.pop();
                 }else {
-                    retref = std::make_shared<R>(ret).get();
+                    m_oldResult.push(ret);
+                    retref = &m_oldResult.top();
                     m_StaticIter = m_CacheEnd;
                 }
                 return *retref;//返回缓存的引用
