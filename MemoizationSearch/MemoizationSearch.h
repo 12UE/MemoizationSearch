@@ -656,7 +656,7 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline void ApplyFilter() {
                 AUTOLOG//自动记录日志
-                
+                ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto nowtime = ApproximatelyGetCurrentTime();
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
             }
