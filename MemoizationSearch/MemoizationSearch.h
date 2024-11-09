@@ -658,7 +658,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
                 auto nowtime = ApproximatelyGetCurrentTime();
-                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!FilterNoCache(it->second.first, it->first)) ? m_Cache->erase(it) : ++it) {}
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
                 if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//没有回调句柄
