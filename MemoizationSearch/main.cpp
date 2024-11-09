@@ -378,6 +378,9 @@ int main() {
 		});
     std::cout << "-----------------" << std::endl;
     std::cout << fib(10) << std::endl;
+    auto callbackinstance = fib.GetFilterCallbacks(hCallBack);
+    fib.DeleteFilterCallbacks(hCallBack);
+    std::cout << fib(10) << std::endl;
     std::cout << "-----------------" << std::endl;
     auto speed = TestSpeed([]() {
         fib(10);
