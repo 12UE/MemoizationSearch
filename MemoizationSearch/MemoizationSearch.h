@@ -1,5 +1,5 @@
 /*
- * File name: MemorizationSearch.h
+ * File name: MemorizationSearch.h Version:2.0.0
  * Copyright (C) 2024 12UE
  *
  * This program is free software; you can redistribute it and/or modify
@@ -555,12 +555,15 @@ namespace memoizationsearch {
             inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_Cache->size() >= others.m_Cache->size();}//比较缓存大小
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
 			inline bool& GetFilterCacheStatusRef() {//获取过滤回调是否缓存状态的引用 注意：设置为false虽然提高了实时性但是降低了可用性
+                AUTOLOG//自动记录日志
                 return m_FilterCacheStatus;
             }
             SAFE_BUFFER inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
+                AUTOLOG//自动记录日志
 				return (m_FilterCacheStatus) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
             }
             SAFE_BUFFER inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
+                AUTOLOG//自动记录日志
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 for (const auto& callback : m_FilerCallBacks) {
                     if (!callback.second(value, argsTuple)) return false;
@@ -568,6 +571,7 @@ namespace memoizationsearch {
                 return true;
             }
             SAFE_BUFFER inline bool FilterCache(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
+                AUTOLOG//自动记录日志
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 // 检查缓存中是否已有结果
                 auto it = m_FilterResultCache.find(argsTuple);
@@ -621,7 +625,7 @@ namespace memoizationsearch {
                     randnumber = getRandom<HCALLBACK>(0, INFINITYCACHE);
 				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
                 m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
-                if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
+                if (UNLIKELY(!bReserverOld)) {
                     auto nowtime = ApproximateGetCurrentTime();
                    for (auto it = m_Cache->begin(); it != m_Cache->end();it= (!Filter(it->second.first, it->first, nowtime))? m_Cache->erase(it):++it) {}
                 }
@@ -655,10 +659,11 @@ namespace memoizationsearch {
                 return true;
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
-                if (!ValidCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
+                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//没有回调句柄
                 return m_FilerCallBacks.find(hcallback);
             }
             SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
+                AUTOLOG//自动记录日志
                 return m_FilerCallBacks;
             }
             SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
