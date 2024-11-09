@@ -368,11 +368,11 @@ int main() {
     std::cout<<memcached(6, 8)<<std::endl;
     auto cachedprint = CacheMemberFunction(obj, &calltest::print);
     std::cout << cachedprint() << std::endl;
-
+    fib(2);
 	auto hCallBack=fib.AddFilterCallbacks([](auto ret, auto pack) {
         
 		return false;
-	});
+	},false);
 	fib.ChangeFilterCallBacks(hCallBack, [](auto ret, auto pack) {
 		return true;
 		});

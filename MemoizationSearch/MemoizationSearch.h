@@ -57,7 +57,8 @@ static T getRandom(T min, T max) {
     }
 }
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
-using HCALLBACK = std::size_t;//回调句柄 不用手动释放
+using TimeType = unsigned long long;
+using HCALLBACK = TimeType;//回调句柄 不用手动释放
 #define INVALID_CALLBACK_HANDLE (HCALLBACK)-1//无效的回调句柄
 #define ValidCallBackHandle(hCallBack) (bool)(hCallBack!= INVALID_CALLBACK_HANDLE)&&(hCallBack)
 namespace xorstr_impl {
@@ -128,7 +129,7 @@ float& GetGlobalDefaultCacheTimeRef() {//获取全局的缓存时间的引用
     return   MEMOIZATIONSEARCH;
 }
 #ifdef _WIN64
-using TimeType = unsigned long long;
+
  auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//定义缓存的最大时间
 #else
 using TimeType = unsigned long;
@@ -401,7 +402,7 @@ namespace memoizationsearch {
                 return *newObj;//返回对象的指针的解引用
             }
         };
-        SAFE_BUFFER static inline TimeType ApproximateGetCurrentTime() noexcept {
+        SAFE_BUFFER static inline TimeType ApproximatelyGetCurrentTime() noexcept {
             //AUTOLOG //自动记录日志
             return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
 
@@ -623,10 +624,7 @@ namespace memoizationsearch {
                     randnumber = getRandom<HCALLBACK>(0, INFINITYCACHE);
 				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
                 m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
-                if (UNLIKELY(!bReserverOld)) {
-                    auto nowtime = ApproximateGetCurrentTime();
-                    for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
-                }
+                if (UNLIKELY(!bReserverOld))ApplyFilter();
                 return (HCALLBACK)randnumber;
             }
             SAFE_BUFFER inline bool DeleteFilterCallbacks(HCALLBACK& hcallback) noexcept {
@@ -653,11 +651,14 @@ namespace memoizationsearch {
 				auto it = GetFilterCallbacks(hCallBack);//获取回调的迭代器
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
                 it->second = newcallbacks;
-                if (UNLIKELY(!bReserveOld)) {
-                    auto nowtime = ApproximateGetCurrentTime();
-                    for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
-                }
+                if (UNLIKELY(!bReserveOld))ApplyFilter();
                 return true;
+            }
+            SAFE_BUFFER inline void ApplyFilter() {
+                AUTOLOG//自动记录日志
+                
+                auto nowtime = ApproximatelyGetCurrentTime();
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!Filter(it->second.first, it->first, nowtime)) ? m_Cache->erase(it) : ++it) {}
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
                 if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//没有回调句柄
@@ -744,7 +745,7 @@ namespace memoizationsearch {
                         if (m_Cache->find(pair.first) == m_Cache->end())m_Cache->insert(pair);//仅仅拷贝不存在的缓存
                     }
                 }
-                auto nowtime = ApproximateGetCurrentTime();//获取当前时间
+                auto nowtime = ApproximatelyGetCurrentTime();//获取当前时间
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//遍历所有的缓存删除过期的缓存
                 return *this;//返回自己
             }
@@ -758,7 +759,7 @@ namespace memoizationsearch {
                     }
                 }
                 //删除过期的缓存
-                auto nowtime = ApproximateGetCurrentTime();//获取当前时间
+                auto nowtime = ApproximatelyGetCurrentTime();//获取当前时间
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//遍历所有的缓存删除过期的缓存
                 return *this;//返回自己
             }
@@ -791,7 +792,7 @@ namespace memoizationsearch {
                     cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//缓存的时间在1和INFINITYCACHE之间
                     for (auto& item : *m_Cache)item.second.second += cacheTime - m_cacheTime;//更新所有的缓存的时间
                 }
-                TimeType nowtime = ApproximateGetCurrentTime();//获取当前时间
+                TimeType nowtime = ApproximatelyGetCurrentTime();//获取当前时间
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//删除过期的缓存
                 m_cacheTime = cacheTime;//设置缓存的时间
             }
@@ -818,7 +819,7 @@ namespace memoizationsearch {
 				};
                 std::async(std::launch::async, Async);
                 R*&& retref = nullptr;
-                auto nowtime = ApproximateGetCurrentTime();
+                auto nowtime = ApproximatelyGetCurrentTime();
                 m_CacheEnd = m_CacheInstance->end();//更新迭代器
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
@@ -831,7 +832,7 @@ namespace memoizationsearch {
                 return *retref;//返回缓存的引用
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
-                TimeType&& m_nowtime = ApproximateGetCurrentTime();//获取当前时间
+                TimeType&& m_nowtime = ApproximatelyGetCurrentTime();//获取当前时间
                 ArgsType&& argsTuple = std::forward_as_tuple(std::cref(args)...);//构造参数的tuple
                 if (LIKELY(m_CacheInstance->empty() ||!CompareTuple(m_StaticArgsTuple,argsTuple)|| m_StaticIter == m_CacheEnd)) {//前期不做时间判断
                     auto&& _staticiter = m_CacheInstance->find(argsTuple);//查找缓存
@@ -861,7 +862,7 @@ namespace memoizationsearch {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);
                 auto it = m_Cache->find(parameters);
-                if (LIKELY(it != m_Cache->end())) it->second = safeadd(ApproximateGetCurrentTime(), cacheTime);
+                if (LIKELY(it != m_Cache->end())) it->second = safeadd(ApproximatelyGetCurrentTime(), cacheTime);
             }
             inline bool SaveCache(const char* szFileName)noexcept {//将缓存保存到文件
                 AUTOLOG//自动记录日志
@@ -899,10 +900,10 @@ namespace memoizationsearch {
                     ArgsType key{};//临时构造一个tuple
                     ValueType value{};//临时构造一个pair
                     if (!ReadTupleFromFile(file, key) || !ReadPairFromFile(file, value)) continue;//读取tuple和pair
-                    if (value.second > ApproximateGetCurrentTime())m_Cache->insert(std::make_pair(key, value));//仅当缓存的时间大于当前时间的时候插入
+                    if (value.second > ApproximatelyGetCurrentTime())m_Cache->insert(std::make_pair(key, value));//仅当缓存的时间大于当前时间的时候插入
                 }
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); ) {
-                    if (it->second.second < ApproximateGetCurrentTime()) {
+                    if (it->second.second < ApproximatelyGetCurrentTime()) {
                         it = m_Cache->erase(it); // erase returns the next valid iterator
                     }else {
                         ++it; // only increment if not erased
@@ -937,7 +938,7 @@ namespace memoizationsearch {
             mutable CacheitemType<R> m_Cache;
             inline CachedFunction(const CacheitemType<R>& cache) :m_Func(nullptr), m_Cache(cache) { AUTOLOG }
             inline CachedFunction(void* funcAddr, CallType type, const std::function<R()>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)), m_Cache(std::make_pair(R{}, 0)) { AUTOLOG }
-            inline R& setcacheresettime(const R& value, const  TimeType  cacheTime = ApproximateGetCurrentTime())const noexcept {
+            inline R& setcacheresettime(const R& value, const  TimeType  cacheTime = ApproximatelyGetCurrentTime())const noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);
                 m_Cache = std::make_pair(value, cacheTime);
@@ -994,7 +995,7 @@ namespace memoizationsearch {
                 if (!file.is_open()) return false;
                 ScopeLock lock(m_mutex);
                 if (!ReadPairFromFile(file, m_Cache))return false;
-                auto nowtime = ApproximateGetCurrentTime();
+                auto nowtime = ApproximatelyGetCurrentTime();
                 if (m_Cache.second > nowtime) m_Cache = std::make_pair(R{}, 0);
                 return true;
             }
@@ -1003,13 +1004,13 @@ namespace memoizationsearch {
             friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction&)noexcept { AUTOLOG return os << 1; }
             SAFE_BUFFER inline R& operator()() const noexcept {
                 AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//自动记录日志
-                if ((TimeType)m_Cache.second > (TimeType)ApproximateGetCurrentTime()) return m_Cache.first;
-                return setcacheresettime(m_Func(),(safeadd(ApproximateGetCurrentTime(), m_cacheTime)));
+                if ((TimeType)m_Cache.second > (TimeType)ApproximatelyGetCurrentTime()) return m_Cache.first;
+                return setcacheresettime(m_Func(),(safeadd(ApproximatelyGetCurrentTime(), m_cacheTime)));
             }
             inline void CleanCache()const noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁
-                m_Cache.second = ApproximateGetCurrentTime() - 1, m_Cache.first = R(); 
+                m_Cache.second = ApproximatelyGetCurrentTime() - 1, m_Cache.first = R(); 
             }
              inline std::function<R()>* operator->()noexcept { AUTOLOG  return &m_Func; }
             inline bool empty()const noexcept { 
