@@ -57,8 +57,8 @@ static T getRandom(T min, T max) {
 }
 static constexpr size_t MAX_QUEUE_SIZE = 100; // 或其他适当的值 迭代的最大深度
 using HCALLBACK = std::size_t;//回调句柄 不用手动释放
-#define INVALID_CALLBACK_HANDLLE (HCALLBACK)-1//无效的回调句柄
-#define ValidCallBackHandle(hCallBack) (bool)(hCallBack!= INVALID_CALLBACK_HANDLLE)&&(hCallBack)
+#define INVALID_CALLBACK_HANDLE (HCALLBACK)-1//无效的回调句柄
+#define ValidCallBackHandle(hCallBack) (bool)(hCallBack!= INVALID_CALLBACK_HANDLE)&&(hCallBack)
 namespace xorstr_impl {
 #ifdef _MSC_VER
 #define XORSTR_INLINE __forceinline
@@ -615,10 +615,10 @@ namespace memoizationsearch {
             [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
-				if (!callbacks) return INVALID_CALLBACK_HANDLLE;//回调为空 callbacks是function对象
-                std::size_t randnumber = 0;
+				if (!callbacks) return INVALID_CALLBACK_HANDLE;//回调为空 callbacks是function对象
+                HCALLBACK randnumber = INVALID_CALLBACK_HANDLE;
                 do {
-                    randnumber = getRandom<std::size_t>(0, INFINITYCACHE);
+                    randnumber = getRandom<HCALLBACK>(0, INFINITYCACHE);
 				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
                 m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
                 if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
@@ -634,7 +634,7 @@ namespace memoizationsearch {
 				auto it = GetFilterCallbacks(hcallback);//查找m_FilerCallBacks中的回调
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false; // 返回 nullptr 表示未找到回调
                 m_FilerCallBacks.erase(it); // 删除回调
-                hcallback = INVALID_CALLBACK_HANDLLE;
+                hcallback = INVALID_CALLBACK_HANDLE;
                 return true; // 返回被删除的回调智能指针
             }
 			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
