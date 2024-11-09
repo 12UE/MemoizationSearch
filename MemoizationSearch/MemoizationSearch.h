@@ -821,15 +821,15 @@ namespace memoizationsearch {
                     while (m_CacheInstance->load_factor() >= 0.75f)m_CacheInstance->reserve(m_CacheInstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_CacheEnd = m_CacheInstance->end();//更新迭代器
 				};
-                std::async(std::launch::async, Async);
+                std::async(Async);
                 R*&& retref = nullptr;
                 auto nowtime = ApproximatelyGetCurrentTime();
                 m_CacheEnd = m_CacheInstance->end();//更新迭代器
+                if (!m_oldResult.empty())m_oldResult.pop();
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
                     retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
-                    if (!m_oldResult.empty())m_oldResult.pop();
                 }else {
                     m_oldResult.push(ret);
                     retref = &m_oldResult.top();
