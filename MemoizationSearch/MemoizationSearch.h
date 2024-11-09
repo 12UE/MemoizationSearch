@@ -27,8 +27,7 @@ T getRandom(T min, T max) {
     if constexpr (std::is_integral_v<T>) {
         std::uniform_int_distribution<T> dis(min, max);
         return dis(gen);
-    }
-    else {
+    }else {
         std::uniform_real_distribution<T> dis(min, max);
         return dis(gen);
     }
@@ -522,7 +521,7 @@ namespace memoizationsearch {
             mutable std::list<std::pair<CallFuncType,std::size_t>> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
-            mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> resultcache; // 缓存结果和时间戳
+            mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
             inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
             inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_Cache->size() < others.m_Cache->size(); }//比较缓存大小
@@ -548,14 +547,14 @@ namespace memoizationsearch {
             SAFE_BUFFER inline bool FilterCache(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 // 检查缓存中是否已有结果
-                auto it = resultcache.find(argsTuple);
-                if (it != resultcache.end()) {
+                auto it = m_FilterResultCache.find(argsTuple);
+                if (it != m_FilterResultCache.end()) {
                     const auto& cached_result = it->second;
                     // 如果缓存未过期
                     if (cached_result.second > nowtime) {
                         return cached_result.first; // 返回缓存结果
                     }else {
-                        resultcache.erase(it); // 如果缓存过期，移除它
+                        m_FilterResultCache.erase(it); // 如果缓存过期，移除它
                     }
                 }
                 // 分别存储返回 false 的回调和 true 的回调
@@ -574,7 +573,7 @@ namespace memoizationsearch {
                 for (const auto& callback : falseCallbacks) {
                     if (callback(value, argsTuple)) {
                         // 存储结果为 true，并设置过期时间
-                        resultcache[argsTuple] = { true, nowtime + m_cacheTime };
+                        m_FilterResultCache[argsTuple] = { true, nowtime + m_cacheTime };
                         return true;
                     }
                 }
@@ -582,24 +581,22 @@ namespace memoizationsearch {
                 for (const auto& callback : trueCallbacks) {
                     if (!callback(value, argsTuple)) {
                         // 存储结果为 false，并设置过期时间
-                        resultcache[argsTuple] = { false, nowtime + m_cacheTime };
+                        m_FilterResultCache[argsTuple] = { false, nowtime + m_cacheTime };
                         return false;
                     }
                 }
                 // 存储结果为 true，并设置过期时间
-                resultcache[argsTuple] = { true, nowtime + m_cacheTime };
+                m_FilterResultCache[argsTuple] = { true, nowtime + m_cacheTime };
                 return true;
             }
             [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 				if (!callbacks) return INVALID_CALLBACK_HANDLLE;//回调为空 callbacks是function对象
-                auto randnumber = getRandom<std::size_t>(0, INFINITYCACHE);
-                while (std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
-                    return callback.second == randnumber;
-                }) != m_FilerCallBacks.end()) {
-                    randnumber = getRandom<std::size_t>(0, INFINITYCACHE);//一直循环到不重复为止
-                }
+                std::size_t randnumber = 0;
+                do {
+                    randnumber = getRandom<std::size_t>(0, INFINITYCACHE);
+				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
                 m_FilerCallBacks.emplace_back(std::make_pair( callbacks,randnumber ));
                 if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
                     auto nowtime = ApproximateGetCurrentTime();
@@ -607,11 +604,11 @@ namespace memoizationsearch {
                 }
                 return (HCALLBACK)randnumber;
             }
-            SAFE_BUFFER inline std::shared_ptr<CallFuncType> RemoveFilterCallbacks(HCALLBACK hcallback) noexcept {
+            SAFE_BUFFER inline std::shared_ptr<CallFuncType> DeleteFilterCallbacks(HCALLBACK hcallback) noexcept {
                 AUTOLOG; // 自动记录日志
                 if (!ValidCallBackHandle(hcallback)) return nullptr; // 返回 nullptr 表示无效回调
                 ScopeLock lock(m_mutex); // 加锁保证线程安全
-                auto it = GetFilterCallbacks(hcallback);
+				auto it = GetFilterCallbacks(hcallback);//查找m_FilerCallBacks中的回调
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return nullptr; // 返回 nullptr 表示未找到回调
                 auto oldcallback = std::make_shared<CallFuncType>(*it); // 创建旧回调的智能指针
                 m_FilerCallBacks.erase(it); // 删除回调
@@ -620,11 +617,11 @@ namespace memoizationsearch {
 			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
 				AUTOLOG; // 自动记录日志
 				ScopeLock lock(m_mutex); // 加锁保证线程安全
-                if (m_FilerCallBacks.empty()) return false;
+                if (m_FilerCallBacks.empty()) return false;//回调列表为空返回false
 				m_FilerCallBacks.clear(); // 清空所有回调
                 return true;
 			}
-            SAFE_BUFFER inline bool ChangeCallBacks(HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
+            SAFE_BUFFER inline bool ChangeFilterCallBacks(HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
                 AUTOLOG//自动记录日志
                 if (!ValidCallBackHandle(hCallBack)|| !newcallbacks) return false;//没有回调句柄
                 ScopeLock lock(m_mutex);//加锁保证线程安全
