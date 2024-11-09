@@ -518,7 +518,7 @@ namespace memoizationsearch {
             mutable iterator m_StaticIter;//静态迭代器 用于缓存的查找 记录上一次的迭代器位置
             mutable R m_StaticRetValueQue[MAX_QUEUE_SIZE];
             mutable size_t m_CurrentIndex = 0;
-            mutable std::list<std::pair<CallFuncType,std::size_t>> m_FilerCallBacks;
+            mutable std::unordered_map<HCALLBACK, CallFuncType> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
@@ -540,7 +540,7 @@ namespace memoizationsearch {
             SAFE_BUFFER inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
                 for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback.first(value, argsTuple)) return false;
+                    if (!callback.second(value, argsTuple)) return false;
                 }
                 return true;
             }
@@ -562,11 +562,11 @@ namespace memoizationsearch {
                 std::list<CallFuncType> trueCallbacks;
                 // 获取所有回调的结果
                 for (const auto& callback : m_FilerCallBacks) {
-                    if (!callback.first(value, argsTuple)) {
-                        falseCallbacks.push_back(callback.first); // 存储返回 false 的回调
+                    if (!callback.second(value, argsTuple)) {
+                        falseCallbacks.push_back(callback.second); // 存储返回 false 的回调
                     }
                     else {
-                        trueCallbacks.push_back(callback.first); // 存储返回 true 的回调
+                        trueCallbacks.push_back(callback.second); // 存储返回 true 的回调
                     }
                 }
                 // 尝试之前返回 false 的回调
@@ -597,7 +597,7 @@ namespace memoizationsearch {
                 do {
                     randnumber = getRandom<std::size_t>(0, INFINITYCACHE);
 				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
-                m_FilerCallBacks.emplace_back(std::make_pair( callbacks,randnumber ));
+                m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
                 if (UNLIKELY(!bReserverOld&& !m_Cache->empty())) {
                     auto nowtime = ApproximateGetCurrentTime();
                    for (auto it = m_Cache->begin(); it != m_Cache->end();it= (!Filter(it->second.first, it->first, nowtime))? m_Cache->erase(it):++it) {}
@@ -633,9 +633,7 @@ namespace memoizationsearch {
             }
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
                 if (!ValidCallBackHandle(hcallback)) return m_FilerCallBacks.end();//没有回调句柄
-                return std::find_if(m_FilerCallBacks.begin(), m_FilerCallBacks.end(), [&](const auto& callback) {
-                    return callback.second == hcallback;
-                });
+                return m_FilerCallBacks.find(hcallback);
             }
             SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
                 return m_FilerCallBacks;
