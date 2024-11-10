@@ -546,6 +546,7 @@ namespace memoizationsearch {
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
             mutable std::deque<R> m_oldResult;
+            mutable std::size_t m_MaxRecursiveCount = 2048;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
             inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
@@ -816,6 +817,9 @@ namespace memoizationsearch {
                     m_CacheInstance = m_Cache.get();
                 }
             }
+            std::size_t& GetMaxRecursiveCountRef() {
+                return m_MaxRecursiveCount;
+            }
             SAFE_BUFFER inline R& AsyncsUpdateCache(const ArgsType& argsTuple)noexcept {//异步更新缓存
                 AUTOLOG
                 auto&& ret = Apply(m_Func, argsTuple);//调用函数
@@ -825,7 +829,7 @@ namespace memoizationsearch {
                     ScopeLock lock(m_mutex);//加锁
                     while (m_CacheInstance->load_factor() >= 0.75f)m_CacheInstance->reserve(m_CacheInstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_CacheEnd = m_CacheInstance->end();//更新迭代器
-                    if (m_oldResult.size() > 2048) {
+                    if (m_oldResult.size() > m_MaxRecursiveCount) {
                         m_oldResult.pop_front();
                     }
 				};
