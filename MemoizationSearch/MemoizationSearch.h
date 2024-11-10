@@ -709,7 +709,12 @@ namespace memoizationsearch {
                     m_CacheInstance = m_Cache.get();//缓存的实例
                 }
             }
-            inline ~CachedFunction() noexcept { AUTOLOG }
+            inline ~CachedFunction() noexcept { 
+                AUTOLOG 
+                while (!m_oldResult.empty()) {
+                    m_oldResult.pop();
+                }
+            }
             inline CachedFunction& operator=(CachedFunction&& others)noexcept {
                 AUTOLOG//自动记录日志
                 ScopeLock lock(m_mutex);//加锁保证线程安全
@@ -820,21 +825,23 @@ namespace memoizationsearch {
                     ScopeLock lock(m_mutex);//加锁
                     while (m_CacheInstance->load_factor() >= 0.75f)m_CacheInstance->reserve(m_CacheInstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_CacheEnd = m_CacheInstance->end();//更新迭代器
+                    if (m_oldResult.size() > 2048) {
+                        m_oldResult.pop();
+                    }
 				};
                 std::async(Async);
-                R*&& retref = nullptr;
                 auto nowtime = ApproximatelyGetCurrentTime();
                 m_CacheEnd = m_CacheInstance->end();//更新迭代器
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
-                    retref = &iter.first->second.first;
                     m_StaticIter = iter.first;
+                    return iter.first->second.first;
                 }else {
-                    m_oldResult.push(ret);//因为函数体可能递归 所以要临时存值
-                    retref = &m_oldResult.top();
+                    m_oldResult.push(std::move(ret));
                     m_StaticIter = m_CacheEnd;
+                    // 不要立即pop_back，让调用链完成后再清理
+                    return m_oldResult.top();
                 }
-                return *retref;//返回缓存的引用
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
                 TimeType&& m_nowtime = ApproximatelyGetCurrentTime();//获取当前时间
@@ -851,8 +858,9 @@ namespace memoizationsearch {
                     auto&& valuepair = m_StaticIter->second;//获取缓存的值
                     if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回
                 }
-                if (m_oldResult.size()>1)m_oldResult.pop();
-                return AsyncsUpdateCache(argsTuple); // 未找到则更新
+                
+                auto &retValue= AsyncsUpdateCache(argsTuple); // 未找到则更新
+                return retValue;
             }
             inline void CleanCache() const noexcept { 
                 AUTOLOG//自动记录日志
