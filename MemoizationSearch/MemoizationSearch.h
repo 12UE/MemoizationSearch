@@ -545,7 +545,7 @@ namespace memoizationsearch {
             mutable std::unordered_map<HCALLBACK, CallFuncType> m_FilerCallBacks;
             mutable ArgsType m_StaticArgsTuple{};//记录上一次参数的tuple
             mutable bool m_FilterCacheStatus = true;
-            mutable std::stack<R> m_oldResult;
+            mutable std::deque<R> m_oldResult;
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
             inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//返回缓存的开始迭代器 用于遍历
             inline  iterator end() { AUTOLOG return m_Cache->end(); }//返回缓存的末尾迭代器 用于遍历
@@ -712,7 +712,7 @@ namespace memoizationsearch {
             inline ~CachedFunction() noexcept { 
                 AUTOLOG 
                 while (!m_oldResult.empty()) {
-                    m_oldResult.pop();
+                    m_oldResult.pop_back();
                 }
             }
             inline CachedFunction& operator=(CachedFunction&& others)noexcept {
@@ -826,7 +826,7 @@ namespace memoizationsearch {
                     while (m_CacheInstance->load_factor() >= 0.75f)m_CacheInstance->reserve(m_CacheInstance->bucket_count() * 2);//负载因子大于0.75的时候扩容
                     m_CacheEnd = m_CacheInstance->end();//更新迭代器
                     if (m_oldResult.size() > 2048) {
-                        m_oldResult.pop();
+                        m_oldResult.pop_front();
                     }
 				};
                 std::async(Async);
@@ -837,10 +837,10 @@ namespace memoizationsearch {
                     m_StaticIter = iter.first;
                     return iter.first->second.first;
                 }else {
-                    m_oldResult.push(std::move(ret));
+                    m_oldResult.emplace_back(std::move(ret));
                     m_StaticIter = m_CacheEnd;
                     // 不要立即pop_back，让调用链完成后再清理
-                    return m_oldResult.top();
+                    return m_oldResult.back();
                 }
             }
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
