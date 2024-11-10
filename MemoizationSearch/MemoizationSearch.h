@@ -835,6 +835,7 @@ namespace memoizationsearch {
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     auto iter= m_CacheInstance->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) });//插入或者更新缓存
                     m_StaticIter = iter.first;
+                    if(!m_oldResult.empty())m_oldResult.pop_front();
                     return iter.first->second.first;
                 }else {
                     m_oldResult.emplace_back(std::move(ret));
