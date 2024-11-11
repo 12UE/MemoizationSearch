@@ -795,11 +795,11 @@ namespace memoizationsearch {
             std::size_t& GetMaxRecursiveCountRef() {
                 return m_MaxRecursiveCount;
             }
-            SAFE_BUFFER inline R AsyncsUpdateCache(const ArgsType& argsTuple)noexcept {//异步更新缓存
+            SAFE_BUFFER inline R AsyncsUpdateCache(TimeType time,const ArgsType& argsTuple)noexcept {//异步更新缓存
                 AUTOLOG
                 auto&& ret = Apply(m_Func, argsTuple);//调用函数
                 ScopeLock lock(m_mutex);//加锁
-                auto nowtime = ApproximatelyGetCurrentTime();
+                auto nowtime = time;
                 if (LIKELY(Filter(ret, argsTuple, nowtime))) {
                     return m_Cache->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) }).first->second.first;//插入或者更新缓存
                 }else {
@@ -807,14 +807,15 @@ namespace memoizationsearch {
                 }
             }
             SAFE_BUFFER inline R operator()(const Args&... args)noexcept {
-                TimeType&& m_nowtime = ApproximatelyGetCurrentTime();//获取当前时间
-                ArgsType&& argsTuple = std::forward_as_tuple(std::cref(args)...);//构造参数的tuple
-                auto iter = m_Cache->find(argsTuple);
-                if (LIKELY(iter != m_Cache->end())) {//如果找到了
+                TimeType m_nowtime = ApproximatelyGetCurrentTime();//获取当前时间
+                ArgsType argsTuple = std::forward_as_tuple(std::cref(args)...);//构造参数的tuple
+                auto m_CacheIntance= m_Cache.get();//获取缓存的实例
+                auto iter = m_CacheIntance->find(argsTuple);
+                if (LIKELY(iter != m_CacheIntance->end())) {//如果找到了
                     auto&& valuepair = iter->second;//获取缓存的值
-                    if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回
+                    if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回(有效)
                 }
-                return AsyncsUpdateCache(argsTuple); // 未找到则更新;
+                return AsyncsUpdateCache(m_nowtime,argsTuple); // 未找到则更新;
             }
             inline void CleanCache() const noexcept { 
                 AUTOLOG//自动记录日志
