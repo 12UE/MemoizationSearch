@@ -373,19 +373,19 @@ int main() {
 		return false;
 	});
     fib.GetFilterCacheStatusRef() = false;
-    auto pack=fib.GetRef(10);
+    auto pack=fib.GetRef(25);
     std::cout << "-----------------" << std::endl;
-    std::cout << fib(10) << std::endl;
+    std::cout << fib(25) << std::endl;
     auto callbackinstance = fib.GetFilterCallbacks(hCallBack);
     fib.DeleteFilterCallbacks(hCallBack);
-    std::cout << fib(10) << std::endl;
+    std::cout << fib(25) << std::endl;
     std::cout << "-----------------" << std::endl;
     auto speed = TestSpeed([]() {
-        fib(10);
+        fib(25);
     });
     std::cout << speed << "/s" << std::endl; 
     std::cout << "-----------------" << std::endl;
-    std::cout << fib(10) << std::endl;
+    std::cout << fib(25) << std::endl;
     std::cout << "-----------------" << std::endl;
     system("pause");
 }
