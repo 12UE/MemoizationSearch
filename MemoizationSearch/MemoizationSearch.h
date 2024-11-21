@@ -20,458 +20,888 @@
  * Date: 2024-11-09
  * Location: Fuzhou, Fujian, China
  * Email: 1258432472@qq.com
- * Project£ºhttps://github.com/12UE/MemoizationSearch
+ * Projectï¼šhttps://github.com/12UE/MemoizationSearch
  */
 #ifndef  MEMOIZATIONSEARCH
 #include <iostream>
+
 #include <functional>
+
 #include <unordered_map>
+
 #include <chrono>
+
 #include <type_traits>
+
 #include <mutex>
+
 #include <typeindex>
+
 #include <random>
+
 #include <future>
+
 #include <fstream>
+
 #include <initializer_list>
+
 #include <type_traits>
+
 #include <limits> 
 #ifdef _DEBUG
 #include <iostream>
+
 #include <string>
 #endif
 #include <array>
+
 #include <utility>
+
 #include <cstdarg>
+
 #include <algorithm>
+
 #include <stack>
+
 template<typename T>
 static T getRandom(T min, T max) {
-    static std::random_device rd;  // ÓÃÓÚ»ñÈ¡Ëæ»úÖÖ×Ó
-    static std::mt19937 gen(rd()); // Mersenne Twister Éú³ÉÆ÷
+
+    static std::random_device rd{};  // ç”¨äºè·å–éšæœºç§å­
+
+    static std::mt19937 gen(rd()); // Mersenne Twister ç”Ÿæˆå™¨
+
     if constexpr (std::is_integral_v<T>) {
+
         std::uniform_int_distribution<T> dis(min, max);
+
         return dis(gen);
+
     }else {
         std::uniform_real_distribution<T> dis(min, max);
+
         return dis(gen);
+
     }
 }
-static constexpr size_t MAX_QUEUE_SIZE = 100; // »òÆäËûÊÊµ±µÄÖµ µü´úµÄ×î´óÉî¶È
 using TimeType = unsigned long long;
-using HCALLBACK = TimeType;//»Øµ÷¾ä±ú ²»ÓÃÊÖ¶¯ÊÍ·Å
-#define INVALID_CALLBACK_HANDLE (HCALLBACK)-1//ÎŞĞ§µÄ»Øµ÷¾ä±ú
+
+using HCALLBACK = TimeType;//å›è°ƒå¥æŸ„ ä¸ç”¨æ‰‹åŠ¨é‡Šæ”¾
+
+#define INVALID_CALLBACK_HANDLE (HCALLBACK)-1//æ— æ•ˆçš„å›è°ƒå¥æŸ„
+
 #define ValidCallBackHandle(hCallBack) (bool)(hCallBack!= INVALID_CALLBACK_HANDLE)&&(hCallBack)
+
 namespace xorstr_impl {
+
 #ifdef _MSC_VER
+
 #define XORSTR_INLINE __forceinline
+
 #else
 #define XORSTR_INLINE inline
 #endif
+
     constexpr auto time = __TIME__;
+
     constexpr auto seed = static_cast<int>(time[7]) +
         static_cast<int>(time[6]) * 10 +static_cast<int>(time[4]) * 60 +static_cast<int>(time[3]) * 600 +static_cast<int>(time[1]) * 3600 +static_cast<int>(time[0]) * 36000;
+
     template <int N>
-    struct random_generator {
-    private:
+    class random_generator {
+
         static constexpr unsigned a = 16807;  // 7^5
+
         static constexpr unsigned m = 2147483647;  // 2^31 - 1
+
         static constexpr unsigned s = random_generator<N - 1>::value;
+
         static constexpr unsigned lo = a * (s & 0xFFFF);  // multiply lower 16 bits by 16807
+
         static constexpr unsigned hi = a * (s >> 16);  // multiply higher 16 bits by 16807
+
         static constexpr unsigned lo2 = lo + ((hi & 0x7FFF) << 16);  // combine lower 15 bits of hi with lo's upper bits
+
         static constexpr unsigned hi2 = hi >> 15;  // discard lower 15 bits of hi
+
         static constexpr unsigned lo3 = lo2 + hi;
     public:
+
         static constexpr unsigned max = m;
+
         static constexpr unsigned value = lo3 > m ? lo3 - m : lo3;
     };
     template <>
     struct random_generator<0> {
+
         static constexpr unsigned value = seed;
     };
+
     template <int N, int M>
     struct random_int {
+
         static constexpr auto value = random_generator<N + 1>::value % M;
     };
+
     template <int N>
     struct random_char {
+
         static const char value = static_cast<char>(1 + random_int<N, 0x7F - 1>::value);
     };
+
     template <size_t N, int K>
-    struct string {
-    private:
+    class string {
+
         const char key_;
+
         std::array<char, N + 1> encrypted_;
+
         constexpr char enc(char c) const {
+
             return c ^ key_;
         }
+
         char dec(char c) const {
+
             return c ^ key_;
         }
+
     public:
+
         template <size_t... Is>
         constexpr XORSTR_INLINE string(const char* str, std::index_sequence<Is...>) :
             key_(random_char<K>::value), encrypted_{ { enc(str[Is])... } } {}
+
         XORSTR_INLINE decltype(auto) decrypt() {
+
             for (size_t i = 0; i < N; ++i) {
+
                 encrypted_[i] = dec(encrypted_[i]);
             }
+
             encrypted_[N] = '\0';
+
             return encrypted_.data();
         }
     };
+
 #undef XORSTR_INLINE
+
 }  // namespace xorstr_impl
+
 #define xorstr(s) (xorstr_impl::string<sizeof(s) - 1, \
   __COUNTER__>(s, std::make_index_sequence<sizeof(s) - 1>()).decrypt())
-float  MEMOIZATIONSEARCH = 75.0f;//Ä¬ÈÏµÄ»º´æÓĞĞ§Ê±¼ä75ms
-float& GetGlobalDefaultCacheTimeRef() {//»ñÈ¡È«¾ÖµÄ»º´æÊ±¼äµÄÒıÓÃ
+
+float  MEMOIZATIONSEARCH = 75.0f;//é»˜è®¤çš„ç¼“å­˜æœ‰æ•ˆæ—¶é—´75ms
+
+float& GetGlobalDefaultCacheTimeRef() {//è·å–å…¨å±€çš„ç¼“å­˜æ—¶é—´çš„å¼•ç”¨
+
     return   MEMOIZATIONSEARCH;
+
 }
 #ifdef _WIN64
 
- auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//¶¨Òå»º´æµÄ×î´óÊ±¼ä
+ auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//å®šä¹‰ç¼“å­˜çš„æœ€å¤§æ—¶é—´
+
 #else
-using TimeType = unsigned long;
- auto INFINITYCACHE = static_cast<TimeType>(0xFFFF'FFFF);//¶¨Òå»º´æµÄ×î´óÊ±¼äÔÚ32Î»ÏÂ
+
+ auto INFINITYCACHE = static_cast<TimeType>(0xFFFF'FFFF);//å®šä¹‰ç¼“å­˜çš„æœ€å¤§æ—¶é—´åœ¨32ä½ä¸‹
+
 #endif // _WIN64
+
 #if defined(__GNUC__) || defined(__clang__)
-#define LIKELY(x)   __builtin_expect((x), 1)//GCC/ClangÏÂµÄlikely
-#define UNLIKELY(x)   __builtin_expect((x), 0)//GCC/ClangÏÂµÄunlikely
+
+#define LIKELY(x)   __builtin_expect((x), 1)//GCC/Clangä¸‹çš„likely
+
+#define UNLIKELY(x)   __builtin_expect((x), 0)//GCC/Clangä¸‹çš„unlikely
+
 #else
-#define LIKELY(x)   (x)//MSVCÏÂÃ»ÓĞÕâ¸ö¶«Î÷
-#define UNLIKELY(x) (x)//MSVCÏÂÃ»ÓĞÕâ¸ö¶«Î÷
+
+#define LIKELY(x)   (x)//MSVCä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿
+
+#define UNLIKELY(x) (x)//MSVCä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿
+
 #endif
+
 #ifdef _MSC_VER
-#pragma warning( push )//±£´æµ±Ç°µÄ¾¯¸æ×´Ì¬
-#pragma warning(disable:4984)//½ûÖ¹constexprÔÚC++14Ö®Ç°µÄ°æ±¾µÄ¾¯¸æ
-#define SAFE_BUFFER __declspec(safebuffers)//ÔÚMSVCÏÂ±íÊ¾º¯ÊıµÄ»º´æÇøÊÇ°²È«µÄ µ«ÊÇÔÚGCCÏÂÊÇÃ»ÓĞÕâ¸ö¶«Î÷µÄ
-#define CDECLCALL __cdecl//ÔÚMSVCÏÂ±íÊ¾º¯Êıµ÷ÓÃÔ¼¶¨ÊÇcdecl µ«ÊÇÔÚGCCÏÂÊÇÃ»ÓĞÕâ¸ö¶«Î÷µÄ
+
+#pragma warning( push )//ä¿å­˜å½“å‰çš„è­¦å‘ŠçŠ¶æ€
+
+#pragma warning(disable:4984)//ç¦æ­¢constexpråœ¨C++14ä¹‹å‰çš„ç‰ˆæœ¬çš„è­¦å‘Š
+
+#define SAFE_BUFFER __declspec(safebuffers)//åœ¨MSVCä¸‹è¡¨ç¤ºå‡½æ•°çš„ç¼“å­˜åŒºæ˜¯å®‰å…¨çš„ ä½†æ˜¯åœ¨GCCä¸‹æ˜¯æ²¡æœ‰è¿™ä¸ªä¸œè¥¿çš„
+
+#define CDECLCALL __cdecl//åœ¨MSVCä¸‹è¡¨ç¤ºå‡½æ•°è°ƒç”¨çº¦å®šæ˜¯cdecl ä½†æ˜¯åœ¨GCCä¸‹æ˜¯æ²¡æœ‰è¿™ä¸ªä¸œè¥¿çš„
+
 #ifdef _WIN64
-#define STDCALL __stdcall//½ö½öÏÂ64Î»µÄWindowsÏÂÓĞÕâ¸ö¶«Î÷MSVC64Î»ÏÂÓĞÒÔÏÂ¶«Î÷
-#define FASTCALL __fastcall//½ö½öÏÂ64Î»µÄWindowsÏÂÓĞÕâ¸ö¶«Î÷MSVC64Î»ÏÂÓĞÒÔÏÂ¶«Î÷
-#define THISCALL __thiscall//½ö½öÏÂ64Î»µÄWindowsÏÂÓĞÕâ¸ö¶«Î÷MSVC64Î»ÏÂÓĞÒÔÏÂ¶«Î÷
+
+#define STDCALL __stdcall//ä»…ä»…ä¸‹64ä½çš„Windowsä¸‹æœ‰è¿™ä¸ªä¸œè¥¿MSVC64ä½ä¸‹æœ‰ä»¥ä¸‹ä¸œè¥¿
+
+#define FASTCALL __fastcall//ä»…ä»…ä¸‹64ä½çš„Windowsä¸‹æœ‰è¿™ä¸ªä¸œè¥¿MSVC64ä½ä¸‹æœ‰ä»¥ä¸‹ä¸œè¥¿
+
+#define THISCALL __thiscall//ä»…ä»…ä¸‹64ä½çš„Windowsä¸‹æœ‰è¿™ä¸ªä¸œè¥¿MSVC64ä½ä¸‹æœ‰ä»¥ä¸‹ä¸œè¥¿
+
 #endif
+
 #else
-#define SAFE_BUFFER//ÔÚGCC/ClangÏÂÃ»ÓĞÕâ¸ö¶«Î÷ ¶¨ÒåÎª¿Õ
-#define CDECLCALL//ÔÚGCC/ClangÏÂÃ»ÓĞÕâ¸ö¶«Î÷ ¶¨ÒåÎª¿Õ
-#define STDCALL//ÔÚGCC/ClangÏÂÃ»ÓĞÕâ¸ö¶«Î÷ ¶¨ÒåÎª¿Õ
-#define FASTCALL//ÔÚGCC/ClangÏÂÃ»ÓĞÕâ¸ö¶«Î÷ ¶¨ÒåÎª¿Õ
-#define THISCALL//ÔÚGCC/ClangÏÂÃ»ÓĞÕâ¸ö¶«Î÷ ¶¨ÒåÎª¿Õ
+#define SAFE_BUFFER//åœ¨GCC/Clangä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿ å®šä¹‰ä¸ºç©º
+
+#define CDECLCALL//åœ¨GCC/Clangä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿ å®šä¹‰ä¸ºç©º
+
+#define STDCALL//åœ¨GCC/Clangä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿ å®šä¹‰ä¸ºç©º
+
+#define FASTCALL//åœ¨GCC/Clangä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿ å®šä¹‰ä¸ºç©º
+
+#define THISCALL//åœ¨GCC/Clangä¸‹æ²¡æœ‰è¿™ä¸ªä¸œè¥¿ å®šä¹‰ä¸ºç©º
+
 #endif
+
 #ifdef _DEBUG
  struct AutoLog {
+
      using Clock = std::chrono::high_resolution_clock;
+
      std::recursive_timed_mutex logmtx;
+
      Clock::time_point timepoint;
-     std::string funcname;//´æ´¢º¯ÊıÃû×Ö
+
+     std::string funcname;//å­˜å‚¨å‡½æ•°åå­—
+
      SAFE_BUFFER inline AutoLog(const std::string& szName = "", const std::string& perfix = "") noexcept {
-         timepoint = Clock::now();
-         std::unique_lock<decltype(logmtx)> lock(logmtx);//¼ÓËøÊ¹µÃ¶àÏß³ÌÏÂ²»»á³öÏÖÎÊÌâ
-         funcname = szName + " " + perfix;//º¯ÊıµÄÃû×ÖÆ´½ÓÉÏÇ°×º
+
 #ifdef DEBUG_LOG
-         std::cout << funcname << xorstr("---> Begin\n");//µ±¹¹ÔìµÄÊ±ºò»á×Ô¶¯´òÓ¡º¯Êı¿ªÊ¼ 
+         timepoint = Clock::now();
+
+         std::unique_lock<decltype(logmtx)> lock(logmtx);//åŠ é”ä½¿å¾—å¤šçº¿ç¨‹ä¸‹ä¸ä¼šå‡ºç°é—®é¢˜
+
+         funcname = szName + " " + perfix;//å‡½æ•°çš„åå­—æ‹¼æ¥ä¸Šå‰ç¼€
+
+         std::cout << funcname << xorstr("---> Begin\n");//å½“æ„é€ çš„æ—¶å€™ä¼šè‡ªåŠ¨æ‰“å°å‡½æ•°å¼€å§‹ 
 #endif
      }
-     SAFE_BUFFER inline  ~AutoLog() noexcept {//µ±¶ÔÏóÎö¹¹µÄÊ±ºò»á×Ô¶¯µ÷ÓÃ
+
+     SAFE_BUFFER inline  ~AutoLog() noexcept {//å½“å¯¹è±¡ææ„çš„æ—¶å€™ä¼šè‡ªåŠ¨è°ƒç”¨
 #ifdef DEBUG_LOG
          auto end = Clock::now();
+
          auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - timepoint).count();
-         std::unique_lock<decltype(logmtx)> lock(logmtx);//¼ÓËøÊ¹µÃ¶àÏß³ÌÏÂ²»»á³öÏÖÎÊÌâ
-         std::cout << funcname << xorstr("---> End Time: ")<<duration<<"ms\n";;//µ±¶ÔÏóÎö¹¹Ê±ºò×Ô¶¯´òÓ¡½áÊø
+
+         std::unique_lock<decltype(logmtx)> lock(logmtx);//åŠ é”ä½¿å¾—å¤šçº¿ç¨‹ä¸‹ä¸ä¼šå‡ºç°é—®é¢˜
+
+         std::cout << funcname << xorstr("---> End Time: ")<<duration<<"ms\n";;//å½“å¯¹è±¡ææ„æ—¶å€™è‡ªåŠ¨æ‰“å°ç»“æŸ
 #endif
      }
+
  };
-#define AUTOLOG  AutoLog log(xorstr(__FUNCTION__),"");//Ö±½Ó´òÓ¡º¯ÊıÃû×Ö
-#define AUTOLOGPERFIX(STR)  AutoLog log(xorstr(__FUNCTION__),STR);//´òÓ¡º¯ÊıÃû×Öµ«ÊÇ¼ÓÉÏÒ»Ğ©ºó×º __FUNCTION__ÊÇMSVCÏÂµÄºêÓÃÓÚ»ñÈ¡º¯ÊıÃû×Ö   MSVCµÄÀ©Õ¹¶¼ÊÇË«ÏÂ»®Ïß¿ªÍ·µÄ
+#define AUTOLOG  AutoLog log(xorstr(__FUNCTION__),"");//ç›´æ¥æ‰“å°å‡½æ•°åå­—
+
+#define AUTOLOGPERFIX(STR)  AutoLog log(xorstr(__FUNCTION__),STR);//æ‰“å°å‡½æ•°åå­—ä½†æ˜¯åŠ ä¸Šä¸€äº›åç¼€ __FUNCTION__æ˜¯MSVCä¸‹çš„å®ç”¨äºè·å–å‡½æ•°åå­—   MSVCçš„æ‰©å±•éƒ½æ˜¯åŒä¸‹åˆ’çº¿å¼€å¤´çš„
 #else
-#define AUTOLOG             //release Ä£Ê½ÏÂÊ²Ã´Ò²²»´òÓ¡
+
+#define AUTOLOG             //release æ¨¡å¼ä¸‹ä»€ä¹ˆä¹Ÿä¸æ‰“å°
+
 #define AUTOLOGPERFIX(STR)
+
 #endif
-constexpr static std::size_t ROOTSEED = 0x92E2194B;//¹şÏ£µÄÖÖ×Ó
+
+constexpr static std::size_t ROOTSEED = 0x92E2194B;//å“ˆå¸Œçš„ç§å­
+
 namespace std {
-    template<typename U>static inline  size_t hasher(const U& value) noexcept {//¹şÏ£Æ÷£¬ÓÃÓÚ¶ÔÈÎÒâÀàĞÍ½øĞĞ¹şÏ£
-        //AUTOLOGPERFIX(typeid(U).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        static std::hash<U> hasher;//Éú³ÉÒ»¸öhash¶ÔÏó
-        return hasher(value);//µ÷ÓÃhasher
+    template<typename U>
+    SAFE_BUFFER static inline  size_t hasher(const U& value) noexcept {//å“ˆå¸Œå™¨ï¼Œç”¨äºå¯¹ä»»æ„ç±»å‹è¿›è¡Œå“ˆå¸Œ
+
+        //AUTOLOGPERFIX(typeid(U).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        static std::hash<U>&& hasher{};//ç”Ÿæˆä¸€ä¸ªhashå¯¹è±¡
+
+        return hasher(value);//è°ƒç”¨hasher
     }
-    template<typename... T>struct TupleHasher {
-        static SAFE_BUFFER inline size_t hashvalue(const tuple<T...>& t) noexcept {//¶ÔÓÚtupleµÄhash
-            AUTOLOGPERFIX(typeid(tuple<T...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return hashImpl(t, index_sequence_for<T...>{}); //µ÷ÓÃÕ¹¿ªhashImpl
+
+    template<typename... T>
+    struct TupleHasher {
+
+        static SAFE_BUFFER inline size_t hashvalue(const tuple<T...>& t) noexcept {//å¯¹äºtupleçš„hash
+
+            //AUTOLOGPERFIX(typeid(tuple<T...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            static index_sequence_for<T...>&& index{};
+
+            return hashImpl(t, index); //è°ƒç”¨å±•å¼€hashImpl
         }
+
         template<typename Tuple, size_t... I, typename expander = int[]>
-        SAFE_BUFFER static inline size_t hashImpl(Tuple&& t, const index_sequence<I...>&, size_t seed = 0) noexcept {//¶ÔÓÚtupleµÄhashµÄÄÚ²¿ÊµÏÖ
-            AUTOLOGPERFIX(typeid(Tuple).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            (void)expander {0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + ROOTSEED + (seed << 6) + (seed >> 2)), 0)...};//Òì»ò¹şÏ£
-            return seed;//·µ»Øseed seedÊÇÒ»¸öhashÖµ
+        SAFE_BUFFER static inline size_t hashImpl(Tuple&& t, const index_sequence<I...>&, size_t seed = 0) noexcept {//å¯¹äºtupleçš„hashçš„å†…éƒ¨å®ç°
+
+            //AUTOLOGPERFIX(typeid(Tuple).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            (void)expander {0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + ROOTSEED + (seed << 6) + (seed >> 2)), 0)...};//å¼‚æˆ–å“ˆå¸Œ
+
+            return seed;//è¿”å›seed seedæ˜¯ä¸€ä¸ªhashå€¼
         }
-        static SAFE_BUFFER inline size_t Seed()noexcept { AUTOLOG return ROOTSEED; }//·µ»ØÄÚ²¿µÄÖÖ×Ó
+
+        static SAFE_BUFFER inline size_t Seed()noexcept { 
+
+            AUTOLOG 
+
+            return ROOTSEED;
+
+        }//è¿”å›å†…éƒ¨çš„ç§å­
     };
-    template<typename... T>struct hash<tuple<T...>> {//¶ÔÓÚtupleµÄhash ÆäÖĞtupleÄÚÊÇÈÎÒâµÄÀàĞÍ
+
+    template<typename... T>
+    struct hash<tuple<T...>> {//å¯¹äºtupleçš„hash å…¶ä¸­tupleå†…æ˜¯ä»»æ„çš„ç±»å‹
         SAFE_BUFFER inline size_t operator()(const tuple<T...>& t) const noexcept {
-            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(tuple<T...>).name()))//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return TupleHasher<T...>::hashvalue(t); //µ÷ÓÃhashvalue »ñµÃhashÖµ
+
+            //AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(tuple<T...>).name()))//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return TupleHasher<T...>::hashvalue(t); //è°ƒç”¨hashvalue è·å¾—hashå€¼
         }
     };
-    template <typename ...T>struct hash<std::function<T...>> {//¶ÔÓÚstd::functionµÄhash
+
+    template <typename ...T>
+    struct hash<std::function<T...>> {//å¯¹äºstd::functionçš„hash
         SAFE_BUFFER inline  size_t operator()(const std::function<T...>& f) const noexcept {
-            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(std::function<T...>).name()))//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return hasher(f.target_type().name());//·µ»Øº¯ÊıµÄÀàĞÍµÄhash
+
+            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(std::function<T...>).name()))//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return hasher(f.target_type().name());//è¿”å›å‡½æ•°çš„ç±»å‹çš„hash
         }
     };
+
 }
 namespace memoizationsearch {
-    template<typename T>class SingleTon {
-        SingleTon(const SingleTon&) = delete; // É¾³ı¿½±´¹¹Ôìº¯Êı
+
+    template<typename T>
+    class SingleTon {
+
+        SingleTon(const SingleTon&) = delete; // åˆ é™¤æ‹·è´æ„é€ å‡½æ•°
+
         SingleTon& operator=(const SingleTon&) = delete;
-        SingleTon(SingleTon&&) = delete;      // É¾³ıÒÆ¶¯¹¹Ôìº¯Êı
+
+        SingleTon(SingleTon&&) = delete;      // åˆ é™¤ç§»åŠ¨æ„é€ å‡½æ•°
+
         SingleTon& operator=(SingleTon&&) = delete;
-        static std::atomic<T*> instancePtr;   // Ê¹ÓÃ atomic È·±£Ïß³Ì°²È«
-        static std::once_flag initFlag;       // ÓÃÓÚ±£Ö¤Ïß³Ì°²È«
+
+        static std::atomic<T*> instancePtr;   // ä½¿ç”¨ atomic ç¡®ä¿çº¿ç¨‹å®‰å…¨
+
+        static std::once_flag initFlag;       // ç”¨äºä¿è¯çº¿ç¨‹å®‰å…¨
+
     protected:
-        SingleTon() { AUTOLOGPERFIX(typeid(T).name()) }
+
+        SingleTon() { 
+
+            AUTOLOGPERFIX(typeid(T).name())
+
+        }
+
         virtual ~SingleTon() {
-            AUTOLOGPERFIX(typeid(T).name())// ×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            delete instancePtr.load();        // ÊÍ·ÅÄÚ´æ
-            instancePtr.store(nullptr);       // Ö¸ÕëÖÃ¿Õ
+
+            AUTOLOGPERFIX(typeid(T).name())// è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            delete instancePtr.load();        // é‡Šæ”¾å†…å­˜
+
+            instancePtr.store(nullptr);       // æŒ‡é’ˆç½®ç©º
         }
     public:
         template<typename... Args>
-        SAFE_BUFFER inline static T& Construct(Args&&... args) noexcept {//¹¹Ôì¶ÔÏó
-            AUTOLOGPERFIX(typeid(T).name())// ×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+        SAFE_BUFFER inline static T& Construct(Args&&... args) noexcept {//æ„é€ å¯¹è±¡
+
+            AUTOLOGPERFIX(typeid(T).name())// è‡ªåŠ¨è®°å½•æ—¥å¿—
+
             std::call_once(initFlag, [&] { instancePtr.store(new T(std::forward<Args>(args)...));});
-            return *instancePtr.load();  // ·µ»Ø¶ÔÏóµÄÒıÓÃ
+
+            return *instancePtr.load();  // è¿”å›å¯¹è±¡çš„å¼•ç”¨
         }
-        SAFE_BUFFER inline static T& Construct() noexcept {//¹¹Ôì¶ÔÏó
-            AUTOLOGPERFIX(typeid(T).name())// ×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            std::call_once(initFlag, [&] { instancePtr.store(new T()); });//½ö½öµ÷ÓÃÒ»´Î´´½¨¶ÔÏó
-            return *instancePtr.load();  // ·µ»Ø¶ÔÏóµÄÒıÓÃ
+
+        SAFE_BUFFER inline static T& Construct() noexcept {//æ„é€ å¯¹è±¡
+
+            AUTOLOGPERFIX(typeid(T).name())// è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            std::call_once(initFlag, [&] { instancePtr.store(new T()); });//ä»…ä»…è°ƒç”¨ä¸€æ¬¡åˆ›å»ºå¯¹è±¡
+
+            return *instancePtr.load();  // è¿”å›å¯¹è±¡çš„å¼•ç”¨
         }
+
         SAFE_BUFFER inline static T& GetInstance() {
-            AUTOLOGPERFIX(typeid(T).name())// ×Ô¶¯¼ÇÂ¼ÈÕÖ¾ 
+
+            AUTOLOGPERFIX(typeid(T).name())// è‡ªåŠ¨è®°å½•æ—¥å¿— 
+
             auto ptr = Construct();
-            if (!ptr)throw std::runtime_error(xorstr("Instance not yet constructed!"));//Å×³öÎ´¹¹ÔìÒì³£
-            return *ptr;                     // ·µ»Ø¶ÔÏóµÄÒıÓÃ
+
+            if (!ptr)throw std::runtime_error(xorstr("Instance not yet constructed!"));//æŠ›å‡ºæœªæ„é€ å¼‚å¸¸
+
+            return *ptr;                     // è¿”å›å¯¹è±¡çš„å¼•ç”¨
         }
     };
-    template<typename T>std::atomic<T*> SingleTon<T>::instancePtr(nullptr);//³õÊ¼»¯Ö¸Õë
-    template<typename T>std::once_flag SingleTon<T>::initFlag;//³õÊ¼»¯±êÖ¾
+
+    template<typename T>std::atomic<T*> SingleTon<T>::instancePtr(nullptr);//åˆå§‹åŒ–æŒ‡é’ˆ
+
+    template<typename T>std::once_flag SingleTon<T>::initFlag;//åˆå§‹åŒ–æ ‡å¿—
+
     template<std::size_t... Indices>struct index_sequence {};
+
     template<std::size_t N, std::size_t... Indices>struct make_index_sequence : make_index_sequence<N - 1, N - 1, Indices...> {};
-    template<std::size_t... Indices>struct make_index_sequence<0, Indices...> : index_sequence<Indices...> {};//Éú³ÉÒ»¸öĞòÁĞ
-    //applyµÄÄÚ²¿ÊµÏÖ
-    template<typename F, typename Tuple, std::size_t... Indices>static SAFE_BUFFER auto inline ApplyImpl(F&& f, Tuple&& tuple, const index_sequence<Indices...>&)noexcept {
-        AUTOLOGPERFIX(typeid(F).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        return std::forward<F>(f)(std::get<Indices>(std::forward<Tuple>(tuple))...);//ÍêÃÀ×ª·¢ µ÷ÓÃf ½«tupleµÄÃ¿¸öÔªËØÕ¹¿ªÎª²ÎÊı
+
+    template<std::size_t... Indices>struct make_index_sequence<0, Indices...> : index_sequence<Indices...> {};//ç”Ÿæˆä¸€ä¸ªåºåˆ—
+    //applyçš„å†…éƒ¨å®ç°
+
+    template<typename F, typename Tuple, std::size_t... Indices>
+    static SAFE_BUFFER auto inline ApplyImpl(F&& f, Tuple&& tuple, const index_sequence<Indices...>&)noexcept {
+
+        AUTOLOGPERFIX(typeid(F).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        return std::forward<F>(f)(std::get<Indices>(std::forward<Tuple>(tuple))...);//å®Œç¾è½¬å‘ è°ƒç”¨f å°†tupleçš„æ¯ä¸ªå…ƒç´ å±•å¼€ä¸ºå‚æ•°
     }
-    //applyµÈÓÚstd::apply ¾ÍÊÇf(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple)...)µÄÒâË¼ »á×Ô¶¯Õ¹¿ªtuple°ÑtupleµÄÔªËØ´«µİ¸øfµ±²ÎÊı
+
+    //applyç­‰äºstd::apply å°±æ˜¯f(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple)...)çš„æ„æ€ ä¼šè‡ªåŠ¨å±•å¼€tupleæŠŠtupleçš„å…ƒç´ ä¼ é€’ç»™få½“å‚æ•°
     template<typename F, typename Tuple, typename Index =make_index_sequence<std::tuple_size<typename std::remove_reference<Tuple>::type>::value> >
     static SAFE_BUFFER inline auto Apply(F&& f, Tuple&& tuple)noexcept {
-        AUTOLOGPERFIX(typeid(F).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        static Index  sequence{};//Éú³ÉÒ»¸öĞòÁĞ
-        return ApplyImpl(std::forward<F>(f), std::forward<Tuple>(tuple), sequence);//Õ¹¿ªtuple
+
+        AUTOLOGPERFIX(typeid(F).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        static Index  sequence{};//ç”Ÿæˆä¸€ä¸ªåºåˆ—
+
+        return ApplyImpl(std::forward<F>(f), std::forward<Tuple>(tuple), sequence);//å±•å¼€tuple
     }
-   
-    template<typename T>static inline bool ReadElementFromFile(std::ifstream& file, T& value) {//¶ÔÓÚ»ù±¾ÀàĞÍµÄ¶ÁÈ¡
-        AUTOLOGPERFIX(typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if(!file) throw std::runtime_error(xorstr("File not open!"));//Èç¹ûÎÄ¼ş´ò¿ªÊ§°Ü¾ÍÅ×³öÒì³£
-        return file.read(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//¶ÁÈ¡ÎÄ¼ş
+
+    template<typename T>
+    static inline bool ReadElementFromFile(std::ifstream& file, T& value) {//å¯¹äºåŸºæœ¬ç±»å‹çš„è¯»å–
+
+        AUTOLOGPERFIX(typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if(!file) throw std::runtime_error(xorstr("File not open!"));//å¦‚æœæ–‡ä»¶æ‰“å¼€å¤±è´¥å°±æŠ›å‡ºå¼‚å¸¸
+
+        return file.read(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//è¯»å–æ–‡ä»¶
     }
-    template<typename T>static inline bool WriteElementToFile(std::ofstream& file, const T& value) {//¶ÔÓÚ»ù±¾ÀàĞÍµÄĞ´Èë
-        AUTOLOGPERFIX(typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if(!file) throw std::runtime_error(xorstr("File not open!"));//Èç¹ûÎÄ¼ş´ò¿ªÊ§°Ü¾ÍÅ×³öÒì³£
-        return file.write(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//Ğ´ÈëÎÄ¼ş
+
+    template<typename T>
+    static inline bool WriteElementToFile(std::ofstream& file, const T& value) {//å¯¹äºåŸºæœ¬ç±»å‹çš„å†™å…¥
+
+        AUTOLOGPERFIX(typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if(!file) throw std::runtime_error(xorstr("File not open!"));//å¦‚æœæ–‡ä»¶æ‰“å¼€å¤±è´¥å°±æŠ›å‡ºå¼‚å¸¸
+
+        return file.write(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//å†™å…¥æ–‡ä»¶
     }
-    template<typename T, typename U>static inline bool WritePairToFile(std::ofstream& file, std::pair<T, U>& pair) { //¶ÔÓÚpairµÄĞ´Èë
-        AUTOLOGPERFIX(typeid(std::pair<T, U>).name())////×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        return !(!WriteElementToFile(file, pair.first) || !WriteElementToFile(file, pair.second)); //pairĞ´ÈëµÚÒ»¸öºÍµÚ¶ş¸öÔªËØ
+
+    template<typename T, typename U>
+    static inline bool WritePairToFile(std::ofstream& file, std::pair<T, U>& pair) { 
+        //å¯¹äºpairçš„å†™å…¥
+
+        AUTOLOGPERFIX(typeid(std::pair<T, U>).name())////è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        return !(!WriteElementToFile(file, pair.first) || !WriteElementToFile(file, pair.second)); //pairå†™å…¥ç¬¬ä¸€ä¸ªå’Œç¬¬äºŒä¸ªå…ƒç´ 
     }
-    template<typename T, typename U>static inline bool ReadPairFromFile(std::ifstream& file, std::pair<T, U>& pair) { //¶ÔÓÚpairµÄ¶ÁÈ¡
-        AUTOLOGPERFIX(typeid(std::pair<T, U>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        return !(!ReadElementFromFile(file, pair.first) || !ReadElementFromFile(file, pair.second)); //pair¶ÁÈ¡µÚÒ»¸öºÍµÚ¶ş¸öÔªËØ
+
+    template<typename T, typename U>
+    static inline bool ReadPairFromFile(std::ifstream& file, std::pair<T, U>& pair) { //å¯¹äºpairçš„è¯»å–
+
+        AUTOLOGPERFIX(typeid(std::pair<T, U>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        return !(!ReadElementFromFile(file, pair.first) || !ReadElementFromFile(file, pair.second)); //pairè¯»å–ç¬¬ä¸€ä¸ªå’Œç¬¬äºŒä¸ªå…ƒç´ 
     }
-    template<std::size_t I = 0, typename... Tp>static inline typename std::enable_if<I == sizeof...(Tp), bool>::type ReadTupleImpl(std::ifstream&, std::tuple<Tp...>&)noexcept {//¶ÔÓÚtupleµÄ¶ÁÈ¡
-        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        return true; //µ±IµÈÓÚtupleµÄ´óĞ¡µÄÊ±ºò·µ»Øtrue µİ¹éµÄÖÕÖ¹Ìõ¼ş
+
+    template<std::size_t I = 0, typename... Tp>
+    static inline typename std::enable_if<I == sizeof...(Tp), bool>::type ReadTupleImpl(std::ifstream&, std::tuple<Tp...>&)noexcept {//å¯¹äºtupleçš„è¯»å–
+
+        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        return true; //å½“Iç­‰äºtupleçš„å¤§å°çš„æ—¶å€™è¿”å›true é€’å½’çš„ç»ˆæ­¢æ¡ä»¶
     }
-    template<std::size_t I = 0, typename... Tp>static inline typename std::enable_if < I<sizeof...(Tp), bool>::type ReadTupleImpl(std::ifstream& file, std::tuple<Tp...>& t)noexcept {//¶ÔÓÚtupleµÄ¶ÁÈ¡µÄÄÚ²¿ÊµÏÖ
-        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+    template<std::size_t I = 0, typename... Tp>
+    static inline typename std::enable_if < I<sizeof...(Tp), bool>::type ReadTupleImpl(std::ifstream& file, std::tuple<Tp...>& t)noexcept {//å¯¹äºtupleçš„è¯»å–çš„å†…éƒ¨å®ç°
+
+        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
         if (!ReadElementFromFile(file, std::get<I>(t)))return false;
-        return ReadTupleImpl<I + 1, Tp...>(file, t);//µİ¹é´¦ÀítupleµÄÃ¿¸öÔªËØ
+
+        return ReadTupleImpl<I + 1, Tp...>(file, t);//é€’å½’å¤„ç†tupleçš„æ¯ä¸ªå…ƒç´ 
     }
-    template<typename... Args>static inline bool ReadTupleFromFile(std::ifstream& file, std::tuple<Args...>& tuple) noexcept {//¶ÔÓÚtupleµÄ¶ÁÈ¡
-        AUTOLOGPERFIX(typeid(std::tuple<Args...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+    template<typename... Args>
+    static inline bool ReadTupleFromFile(std::ifstream& file, std::tuple<Args...>& tuple) noexcept {//å¯¹äºtupleçš„è¯»å–
+
+        AUTOLOGPERFIX(typeid(std::tuple<Args...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
         return ReadTupleImpl(file, tuple); 
     }
-    template<std::size_t I = 0, typename... Tp>static inline typename std::enable_if<I == sizeof...(Tp), bool>::type WriteTupleImpl(std::ofstream&, const std::tuple<Tp...>&) noexcept { //¶ÔÓÚtupleµÄĞ´Èë
-        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        return true; //µ±IµÈÓÚtupleµÄ´óĞ¡µÄÊ±ºò·µ»Øtrue µİ¹éµÄÖÕÖ¹Ìõ¼ş
+
+    template<std::size_t I = 0, typename... Tp>
+    static inline typename std::enable_if<I == sizeof...(Tp), bool>::type WriteTupleImpl(std::ofstream&, const std::tuple<Tp...>&) noexcept { //å¯¹äºtupleçš„å†™å…¥
+
+        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        return true; //å½“Iç­‰äºtupleçš„å¤§å°çš„æ—¶å€™è¿”å›true é€’å½’çš„ç»ˆæ­¢æ¡ä»¶
     }
-    template<std::size_t I = 0, typename... Tp>static inline typename std::enable_if < I< sizeof...(Tp), bool>::type WriteTupleImpl(std::ofstream& file, const std::tuple<Tp...>& t) noexcept {//¶ÔÓÚtupleµÄĞ´ÈëµÄÄÚ²¿ÊµÏÖ
-        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+    template<std::size_t I = 0, typename... Tp>
+    static inline typename std::enable_if < I< sizeof...(Tp), bool>::type WriteTupleImpl(std::ofstream& file, const std::tuple<Tp...>& t) noexcept {//å¯¹äºtupleçš„å†™å…¥çš„å†…éƒ¨å®ç°
+
+        AUTOLOGPERFIX(typeid(std::tuple<Tp...>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
         if (!WriteElementToFile(file, std::get<I>(t)))return false;
-        return WriteTupleImpl<I + 1, Tp...>(file, t);//µİ¹é´¦ÀítupleµÄÃ¿¸öÔªËØ
+
+        return WriteTupleImpl<I + 1, Tp...>(file, t);//é€’å½’å¤„ç†tupleçš„æ¯ä¸ªå…ƒç´ 
     }
-    template<typename... Args>SAFE_BUFFER static inline bool WriteTupleToFile(std::ofstream& file, const std::tuple<Args...>& tuple) noexcept { return WriteTupleImpl(file, tuple); }//¶ÔÓÚtupleµÄĞ´Èë
-    template<>SAFE_BUFFER inline bool ReadElementFromFile<std::string>(std::ifstream& file, std::string& value) {//¶ÔÓÚstringµÄ¶ÁÈ¡µÄÌØ»¯
-        AUTOLOGPERFIX(typeid(std::string).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if (!file) return false;//ÎÄ¼ş´ò¿ªÊ§°Ü 
-        std::size_t size = 0;//Ö¸Ã÷ÁË×Ö·û´®µÄ³¤¶È
-        if (!file.read(reinterpret_cast<char*>(&size), sizeof(size)))return false;//¶ÁÈ¡×Ö·û´®µÄ³¤¶È 
-        std::string utf8String(size, '\0');//Ô¤Áô×Ö·û´®µÄ¿Õ¼ä
-        if (!file.read(&utf8String[0], size))return false;//¶ÁÈ¡×Ö·û´®
-        value = std::move(utf8String);//ÒÆ¶¯¸³Öµ¸øvalue
-        return true;//·µ»Ø³É¹¦
+
+    template<typename... Args>
+    SAFE_BUFFER static inline bool WriteTupleToFile(std::ofstream& file, const std::tuple<Args...>& tuple) noexcept { 
+
+        return WriteTupleImpl(file, tuple); 
+    }//å¯¹äºtupleçš„å†™å…¥
+
+    template<>
+    SAFE_BUFFER inline bool ReadElementFromFile<std::string>(std::ifstream& file, std::string& value) {//å¯¹äºstringçš„è¯»å–çš„ç‰¹åŒ–
+
+        AUTOLOGPERFIX(typeid(std::string).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if (!file) return false;//æ–‡ä»¶æ‰“å¼€å¤±è´¥ 
+
+        std::size_t size = 0;//æŒ‡æ˜äº†å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (!file.read(reinterpret_cast<char*>(&size), sizeof(size)))return false;//è¯»å–å­—ç¬¦ä¸²çš„é•¿åº¦ 
+
+        std::string utf8String(size, '\0');//é¢„ç•™å­—ç¬¦ä¸²çš„ç©ºé—´
+
+        if (!file.read(&utf8String[0], size))return false;//è¯»å–å­—ç¬¦ä¸²
+
+        value = std::move(utf8String);//ç§»åŠ¨èµ‹å€¼ç»™value
+
+        return true;//è¿”å›æˆåŠŸ
     }
-    template<>SAFE_BUFFER inline bool ReadElementFromFile<std::wstring>(std::ifstream& file, std::wstring& value) {//¶ÔÓÚwstringµÄ¶ÁÈ¡µÄÌØ»¯
-        AUTOLOGPERFIX(typeid(std::wstring).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if (!file) return  false;//ÎÄ¼ş´ò¿ªÊ§°Ü
-        std::wstring::size_type len = 0;//Ö¸Ã÷ÁË×Ö·û´®µÄ³¤¶È
-        if (!file.read(reinterpret_cast<char*>(&len), sizeof(len)).good()) return false;//¶ÁÈ¡×Ö·û´®µÄ³¤¶È
-        std::wstring wstr(len, L'\0');//Ô¤Áô×Ö·û´®µÄ¿Õ¼ä
-        if (!file.read(reinterpret_cast<char*>(&wstr[0]), len * sizeof(wchar_t)).good()) return false;//¶ÁÈ¡×Ö·û´®
+
+    template<>
+    SAFE_BUFFER inline bool ReadElementFromFile<std::wstring>(std::ifstream& file, std::wstring& value) {//å¯¹äºwstringçš„è¯»å–çš„ç‰¹åŒ–
+
+        AUTOLOGPERFIX(typeid(std::wstring).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if (!file) return  false;//æ–‡ä»¶æ‰“å¼€å¤±è´¥
+
+        std::wstring::size_type len = 0;//æŒ‡æ˜äº†å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (!file.read(reinterpret_cast<char*>(&len), sizeof(len)).good()) return false;//è¯»å–å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        std::wstring wstr(len, L'\0');//é¢„ç•™å­—ç¬¦ä¸²çš„ç©ºé—´
+
+        if (!file.read(reinterpret_cast<char*>(&wstr[0]), len * sizeof(wchar_t)).good()) return false;//è¯»å–å­—ç¬¦ä¸²
+
         value = std::move(wstr);
+
         return true;
     }
-    template<>SAFE_BUFFER inline bool WriteElementToFile<std::string>(std::ofstream& file, const  std::string& value) {//¶ÔÓÚstringµÄĞ´ÈëµÄÌØ»¯
-        AUTOLOGPERFIX(typeid(std::string).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if (!file) return false;//ÎÄ¼ş´ò¿ªÊ§°Ü
-        std::size_t length = value.size();//×Ö·û´®µÄ³¤¶È
-        if (length == 0) return false;//³¤¶ÈÎª0
-        if (!file.write(reinterpret_cast<const char*>(&length), sizeof(length)))return false;//Ğ´Èë×Ö·û´®µÄ³¤¶È
-        if (!file.write(value.data(), length))return false;//Ğ´Èë×Ö·û´®
+
+    template<>
+    SAFE_BUFFER inline bool WriteElementToFile<std::string>(std::ofstream& file, const  std::string& value) {//å¯¹äºstringçš„å†™å…¥çš„ç‰¹åŒ–
+
+        AUTOLOGPERFIX(typeid(std::string).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if (!file) return false;//æ–‡ä»¶æ‰“å¼€å¤±è´¥
+
+        std::size_t length = value.size();//å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (length == 0) return false;//é•¿åº¦ä¸º0
+
+        if (!file.write(reinterpret_cast<const char*>(&length), sizeof(length)))return false;//å†™å…¥å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (!file.write(value.data(), length))return false;//å†™å…¥å­—ç¬¦ä¸²
+
         return true;
     }
-    template<>SAFE_BUFFER inline bool WriteElementToFile<std::wstring>(std::ofstream& file, const std::wstring& wstr) {//¶ÔÓÚwstringµÄĞ´ÈëµÄÌØ»¯
-        AUTOLOGPERFIX(typeid(std::wstring).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-        if (!file) return  false;     //ÎÄ¼ş´ò¿ªÊ§°Ü
-        auto length = wstr.size();//×Ö·û´®µÄ³¤¶È
-        if (!file.write(reinterpret_cast<const char*>(&length), sizeof(length)).good()) return false;//Ğ´Èë×Ö·û´®µÄ³¤¶È
-        if (!file.write(reinterpret_cast<const char*>(wstr.c_str()), wstr.size() * sizeof(wchar_t))) return false;//Ğ´Èë×Ö·û´®
+
+    template<>
+    SAFE_BUFFER inline bool WriteElementToFile<std::wstring>(std::ofstream& file, const std::wstring& wstr) {//å¯¹äºwstringçš„å†™å…¥çš„ç‰¹åŒ–
+
+        AUTOLOGPERFIX(typeid(std::wstring).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+        if (!file) return  false;     //æ–‡ä»¶æ‰“å¼€å¤±è´¥
+
+        auto length = wstr.size();//å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (!file.write(reinterpret_cast<const char*>(&length), sizeof(length)).good()) return false;//å†™å…¥å­—ç¬¦ä¸²çš„é•¿åº¦
+
+        if (!file.write(reinterpret_cast<const char*>(wstr.c_str()), wstr.size() * sizeof(wchar_t))) return false;//å†™å…¥å­—ç¬¦ä¸²
+
         return true;
     }
+
     namespace nonstd {
+
         static std::recursive_mutex MemoizationGetCurrentTimeMtx;
-        static auto program_start = std::chrono::high_resolution_clock ::now().time_since_epoch();//³ÌĞò¿ªÊ¼µÄÊ±¼äµÄÊ±¼ä´Á
+
+        static auto program_start = std::chrono::high_resolution_clock ::now().time_since_epoch();//ç¨‹åºå¼€å§‹çš„æ—¶é—´çš„æ—¶é—´æˆ³
+
         thread_local static TimeType count = 0;
-        class ScopeLock {//Ò»ÖÖ×Ô¶¯¼ÓËøµÄRAIIÄ£Ê½
+
+        class ScopeLock {//ä¸€ç§è‡ªåŠ¨åŠ é”çš„RAIIæ¨¡å¼
+
             std::recursive_mutex& m_mutex;
+
             bool m_locked;
+
         public:
-            SAFE_BUFFER explicit inline ScopeLock(std::recursive_mutex& mtx) : m_mutex(mtx), m_locked(false) { AUTOLOG m_locked = m_mutex.try_lock(); }
-            SAFE_BUFFER inline ~ScopeLock() { AUTOLOG if (m_locked) m_mutex.unlock(); }
+            SAFE_BUFFER explicit inline ScopeLock(std::recursive_mutex& mtx) noexcept : m_mutex(mtx), m_locked(false) { 
+
+                AUTOLOG 
+
+                m_locked = m_mutex.try_lock();
+
+            }
+
+            SAFE_BUFFER inline ~ScopeLock()noexcept {
+
+                AUTOLOG
+
+                if (m_locked) m_mutex.unlock();
+
+            }
         };
-        template<typename T>class ObjectPool :public SingleTon<ObjectPool<T>> {//µ¥ÀıÆæÒìµİ¹éÄ£°åÄ£Ê½
-            std::unordered_map<std::size_t, T*> m_pool;//Ò»¸ö¹şÏ£±í´æ´¢¶ÔÏóµÄÖ¸Õë 
-            unsigned char* objectpool;//¶ÔÏó³Ø
-            TimeType Size = 0;//¶ÔÏó³ØµÄ´óĞ¡
-            TimeType offset = 0;//Æ«ÒÆ µ±ÓĞ¶ÔÏó¹¹ÔìµÄÊ±ºò»áÆ«ÒÆ
-            std::recursive_mutex ObjectPoolMtx;//¶ÔÏó³ØµÄ»¥³âÁ¿ µ«ÊÇÊÇµİ¹éµÄ
+
+        template<typename T>
+        class ObjectPool :public SingleTon<ObjectPool<T>> {//å•ä¾‹å¥‡å¼‚é€’å½’æ¨¡æ¿æ¨¡å¼
+
+            std::unordered_map<std::size_t, T*> m_pool;//ä¸€ä¸ªå“ˆå¸Œè¡¨å­˜å‚¨å¯¹è±¡çš„æŒ‡é’ˆ 
+
+            unsigned char* objectpool;//å¯¹è±¡æ± 
+
+            TimeType Size = 0;//å¯¹è±¡æ± çš„å¤§å°
+
+            TimeType offset = 0;//åç§» å½“æœ‰å¯¹è±¡æ„é€ çš„æ—¶å€™ä¼šåç§»
+
+            std::recursive_mutex ObjectPoolMtx;//å¯¹è±¡æ± çš„äº’æ–¥é‡ ä½†æ˜¯æ˜¯é€’å½’çš„
         public:
             inline ObjectPool() : offset(0) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                Size = MAX_QUEUE_SIZE* sizeof(T);//Ä¬ÈÏµÄ´óĞ¡ÊÇ10MBµÄ´óĞ¡ n¸öTÀàĞÍ¶ÔÏó×Ü´óĞ¡Îª4KB
-                objectpool = new unsigned char[Size];//·ÖÅäÄÚ´æ ·ÖÅäÊ§°Ünew»á×Ô¶¯Å×³östd::bad_allocÒì³£
-                memset(objectpool, 0, Size);//³õÊ¼»¯ÄÚ´æ
-                m_pool.reserve(Size);//mapÔ¤Áô¿Õ¼ä
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                Size = 100* sizeof(T);//é»˜è®¤çš„å¤§å°æ˜¯10MBçš„å¤§å° nä¸ªTç±»å‹å¯¹è±¡æ€»å¤§å°ä¸º4KB
+
+                objectpool = new unsigned char[Size];//åˆ†é…å†…å­˜ åˆ†é…å¤±è´¥newä¼šè‡ªåŠ¨æŠ›å‡ºstd::bad_allocå¼‚å¸¸
+
+                memset(objectpool, 0, Size);//åˆå§‹åŒ–å†…å­˜
+
+                m_pool.reserve(Size);//mapé¢„ç•™ç©ºé—´
             }
+
             ~ObjectPool() {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(ObjectPoolMtx);//¼ÓËø
-                m_pool.clear();//Çå¿Õmap
-                delete[] objectpool;//ËùÓĞÔÚobjectpoolÉÏµÄ¶ÔÏó¶¼ÊÇplacement newµÄ¶ÔÏó ĞèÒªÊÖ¶¯ÊÍ·Å
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(ObjectPoolMtx);//åŠ é”
+
+                m_pool.clear();//æ¸…ç©ºmap
+
+                delete[] objectpool;//æ‰€æœ‰åœ¨objectpoolä¸Šçš„å¯¹è±¡éƒ½æ˜¯placement newçš„å¯¹è±¡ éœ€è¦æ‰‹åŠ¨é‡Šæ”¾
             }
-            template<typename U, typename... Args>SAFE_BUFFER inline T& operator()(const U& prefix,const Args&... args){
-                AUTOLOGPERFIX(std::string(xorstr("Functor ")) + typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                auto seed = typeid(T).hash_code() ^ std::hasher(std::make_tuple(prefix, args...));//Í¨¹ı¶Ô²ÎÊıµÄhashºÍÀàĞÍµÄhashÒì»òµÃµ½Ò»¸öÎ¨Ò»µÄseed
-                auto it = m_pool.find(seed);//²éÕÒÊÇ·ñ´æÔÚ
-                if (LIKELY(it != m_pool.end()))return *it->second;//Èç¹û´æÔÚÖ±½Ó·µ»Ø
-                if (offset + sizeof(T) > Size) {//Èç¹û¿Õ¼ä²»¹»
-                    Size *=2;//À©´óÒ»±¶
-                    auto newpool = new unsigned char[Size];//·ÖÅäĞÂµÄ¿Õ¼ä
-                    memcpy_s(newpool, Size, objectpool, Size / 2);//¿½±´¾ÉµÄÊı¾İ
-                    ScopeLock lock(ObjectPoolMtx);//¼ÓËø
-                    for (auto& pair : m_pool)pair.second = reinterpret_cast<T*>(newpool + (reinterpret_cast<unsigned char*>(pair.second) - objectpool));//½«Ô­ÓĞµÄÖ¸ÕëÖ¸ÏòĞÂµÄ¿Õ¼ä
-                    delete[] objectpool;//ÊÍ·Å¾ÉµÄ¿Õ¼ä
-                    objectpool = newpool;//Ö¸ÏòĞÂµÄ¿Õ¼ä
+
+            template<typename U, typename... Args>
+            SAFE_BUFFER inline T& operator()(const U& prefix,const Args&... args){
+
+                AUTOLOGPERFIX(std::string(xorstr("Functor ")) + typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                auto seed = typeid(T).hash_code() ^ std::hasher(std::make_tuple(prefix, args...));//é€šè¿‡å¯¹å‚æ•°çš„hashå’Œç±»å‹çš„hashå¼‚æˆ–å¾—åˆ°ä¸€ä¸ªå”¯ä¸€çš„seed
+
+                auto it = m_pool.find(seed);//æŸ¥æ‰¾æ˜¯å¦å­˜åœ¨
+
+                if (LIKELY(it != m_pool.end()))return *it->second;//å¦‚æœå­˜åœ¨ç›´æ¥è¿”å›
+
+                if (offset + sizeof(T) > Size) {//å¦‚æœç©ºé—´ä¸å¤Ÿ
+
+                    Size *=2;//æ‰©å¤§ä¸€å€
+
+                    auto newpool = new unsigned char[Size];//åˆ†é…æ–°çš„ç©ºé—´
+
+                    memcpy_s(newpool, Size, objectpool, Size / 2);//æ‹·è´æ—§çš„æ•°æ®
+
+                    ScopeLock lock(ObjectPoolMtx);//åŠ é”
+
+                    for (auto& pair : m_pool)pair.second = reinterpret_cast<T*>(newpool + (reinterpret_cast<unsigned char*>(pair.second) - objectpool));//å°†åŸæœ‰çš„æŒ‡é’ˆæŒ‡å‘æ–°çš„ç©ºé—´
+
+                    delete[] objectpool;//é‡Šæ”¾æ—§çš„ç©ºé—´
+
+                    objectpool = newpool;//æŒ‡å‘æ–°çš„ç©ºé—´
                 }
-                auto newObj = new (objectpool + offset) T(args...);//placement new//ÔÚÖ¸¶¨µÄÄÚ´æÎ»ÖÃÉÏ¹¹Ôì¶ÔÏó
-                offset += sizeof(T);//Æ«ÒÆ Ã¿´Î¹¹ÔìÒ»¸ö¶ÔÏó¾ÍÆ«ÒÆÒ»¸ö¶ÔÏóµÄ´óĞ¡
-                std::thread([&]() {ScopeLock lock(ObjectPoolMtx);  m_pool[seed] = newObj; }).detach();//Òì²½²åÈëµ½mapÖĞ
-                return *newObj;//·µ»Ø¶ÔÏóµÄÖ¸ÕëµÄ½âÒıÓÃ
+
+                auto newObj = new (objectpool + offset) T(args...);//placement new//åœ¨æŒ‡å®šçš„å†…å­˜ä½ç½®ä¸Šæ„é€ å¯¹è±¡
+
+                offset += sizeof(T);//åç§» æ¯æ¬¡æ„é€ ä¸€ä¸ªå¯¹è±¡å°±åç§»ä¸€ä¸ªå¯¹è±¡çš„å¤§å°
+
+                std::thread([&]() {ScopeLock lock(ObjectPoolMtx);  m_pool[seed] = newObj; }).detach();//å¼‚æ­¥æ’å…¥åˆ°mapä¸­
+
+                return *newObj;//è¿”å›å¯¹è±¡çš„æŒ‡é’ˆçš„è§£å¼•ç”¨
             }
         };
-        SAFE_BUFFER static inline TimeType ApproximatelyGetCurrentTime() noexcept {
-            //AUTOLOG //×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//Ö±½Ó·µ»Øµ±Ç°Ê±¼ä program_startÊÇ³ÌĞò¿ªÊ¼µÄÊ±¼ä
 
+        SAFE_BUFFER static inline TimeType MemoroizationGetCurrentTime() noexcept {
+
+            //AUTOLOG //è‡ªåŠ¨è®°å½•æ—¥å¿—
+            return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//ç›´æ¥è¿”å›å½“å‰æ—¶é—´ program_startæ˜¯ç¨‹åºå¼€å§‹çš„æ—¶é—´
         }
+
         template<typename T>
-        SAFE_BUFFER static inline T safeadd(const T& a, const T& b) noexcept {//°²È«µÄÏà¼Ó²»»áÒç³ö ×î´óÖ»»á·µ»ØINFINITYCACHE
-            AUTOLOGPERFIX(typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+        SAFE_BUFFER static inline T safeadd(const T& a, const T& b) noexcept {//å®‰å…¨çš„ç›¸åŠ ä¸ä¼šæº¢å‡º æœ€å¤§åªä¼šè¿”å›INFINITYCACHE
+
+            AUTOLOGPERFIX(typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
             constexpr auto INFINITYVALUE = std::numeric_limits<T>::max();
+
             return (LIKELY(b > INFINITYVALUE - a)) ? INFINITYVALUE : a + b;
         }
-        template<typename T> SAFE_BUFFER inline const T& Clamp(const T& m_value, const T& low, const T& high) noexcept { 
-            AUTOLOGPERFIX(typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return (m_value < low) ? low : (m_value > high) ? high : m_value; //·µ»Øm_valueÔÚlowºÍhighÖ®¼äµÄÖµ
+
+        template<typename T> 
+        SAFE_BUFFER inline const T& Clamp(const T& m_value, const T& low, const T& high) noexcept { 
+
+            AUTOLOGPERFIX(typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return (m_value < low) ? low : (m_value > high) ? high : m_value; //è¿”å›m_valueåœ¨lowå’Œhighä¹‹é—´çš„å€¼
         }
-        static inline SAFE_BUFFER std::string SizeToString(size_t value, std::string result="") noexcept {//½«size_t×ª»»Îª×Ö·û´®
-            AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            if (value == 0) return "0";//Èç¹ûÊÇ0Ö±½Ó·µ»Ø0
-            while ((value/=10) > 0) {result = (char)('0' + (value % 10)) + result;}//È¡ÓàÒ»´ÎÏàµ±ÓÚÈ¡Ò»Î»
+
+        static inline SAFE_BUFFER std::string SizeToString(size_t value, std::string result="") noexcept {//å°†size_tè½¬æ¢ä¸ºå­—ç¬¦ä¸²
+
+            AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            if (value == 0) return "0";//å¦‚æœæ˜¯0ç›´æ¥è¿”å›0
+
+            while ((value/=10) > 0) {result = (char)('0' + (value % 10)) + result;}//å–ä½™ä¸€æ¬¡ç›¸å½“äºå–ä¸€ä½
+
             return result;
         }
-        static inline SAFE_BUFFER  std::string PathTruncate(const std::string& path) noexcept {//½«Â·¾¶½Ø¶ÏÎª×î´ó³¤¶ÈÎªMEMOIZATIONSEARCH
-            AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+        static inline SAFE_BUFFER  std::string PathTruncate(const std::string& path) noexcept {//å°†è·¯å¾„æˆªæ–­ä¸ºæœ€å¤§é•¿åº¦ä¸ºMEMOIZATIONSEARCH
+
+            AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
             std::string result = path;
+
             if (result.size() > MEMOIZATIONSEARCH)result.resize((TimeType)MEMOIZATIONSEARCH);
+
             result.erase(std::remove_if(result.begin(), result.end(), [](unsigned char c) { return !std::isalnum(c) && c != '/'; }), result.end());
+
             std::replace(result.begin(), result.end(), '\\', '/');
+
             return result;
         }
+
         enum class CallType : unsigned char {
-            cdeclcall = 0,//Ä¬ÈÏµÄµ÷ÓÃÔ¼¶¨
+
+            cdeclcall = 0,//é»˜è®¤çš„è°ƒç”¨çº¦å®š
+
 #ifdef _WIN64
-            stdcall=1,//64Î»ÏÂµÄstdcall
-            fastcall=2,//64Î»ÏÂµÄfastcall
+            stdcall=1,//64ä½ä¸‹çš„stdcall
+
+            fastcall=2,//64ä½ä¸‹çš„fastcall
+
 #endif // _WIN64
         };
+
         struct CachedFunctionBase{
-            mutable void* m_funcAddr;//º¯ÊıµÄµØÖ·
-            mutable CallType m_callType;//º¯ÊıµÄµ÷ÓÃÔ¼¶¨
-            mutable TimeType m_cacheTime;//»º´æµÄÊ±¼ä
-            mutable std::recursive_mutex m_mutex;//µİ¹éµÄ»¥³âÁ¿
-            inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) { AUTOLOG };//Ä¬ÈÏ¹¹Ôìº¯Êı
+
+            mutable void* m_funcAddr;//å‡½æ•°çš„åœ°å€
+
+            mutable CallType m_callType;//å‡½æ•°çš„è°ƒç”¨çº¦å®š
+
+            mutable TimeType m_cacheTime;//ç¼“å­˜çš„æ—¶é—´
+
+            mutable std::recursive_mutex m_mutex;//é€’å½’çš„äº’æ–¥é‡
+
+            inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) { 
+
+                AUTOLOG 
+            }//é»˜è®¤æ„é€ å‡½æ•°
+
             inline  CachedFunctionBase(void* funcAddr, CallType type, TimeType cacheTime = MEMOIZATIONSEARCH) : m_funcAddr(funcAddr), m_callType(type), m_cacheTime(cacheTime) {
+
                 AUTOLOG
             }
-			inline virtual ~CachedFunctionBase() { AUTOLOG }//Îö¹¹º¯Êı×Ô¶¯¼ÇÂ¼ÈÕÖ¾£¬È·±£¸¸ÀàµÄÎö¹¹º¯Êı±»µ÷ÓÃ
-            inline void SetCacheValidTime(TimeType cacheTime) noexcept {//ÉèÖÃ»º´æµÄÓĞĞ§Ê±¼ä
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                m_cacheTime = cacheTime;//ÉèÖÃ»º´æµÄÊ±¼ä
-            }//ÉèÖÃ»º´æµÄÊ±¼ä
-            inline TimeType GetCacheTime() const { AUTOLOG  return m_cacheTime; }//»ñÈ¡»º´æµÄÊ±¼ä
-            inline operator void* () { AUTOLOG  return m_funcAddr; }//·µ»Øº¯ÊıµÄµØÖ·
-            inline bool operator==(const CachedFunctionBase& others) noexcept { AUTOLOG return m_funcAddr == others.m_funcAddr; }//±È½ÏÁ½¸öÔªËØµÄÏàµÈÓë·ñ
-            template<typename Func>inline bool operator==(Func&& f) noexcept { AUTOLOG  return m_funcAddr == &f; }//±È½ÏÁ½¸öÔªËØµÄÏàµÈÓë·ñ
-            inline bool operator!=(const CachedFunctionBase& others) noexcept { AUTOLOG return m_funcAddr != others.m_funcAddr; }//±È½ÏÁ½¸öÔªËØµÄÏàµÈÓë·ñ
-            template<typename Func>inline bool operator!=(Func&& f) noexcept { AUTOLOG  return m_funcAddr != &f; }//±È½ÏÁ½¸öÔªËØµÄÏàµÈÓë·ñ
-            inline operator bool()noexcept { AUTOLOG return (bool)m_funcAddr; }//ÅĞ¶ÏÊÇ·ñÎª¿Õ
-            inline auto Raw() const noexcept { AUTOLOG return m_funcAddr; }//·µ»Øº¯ÊıµÄµØÖ·
-            inline auto operator&() { AUTOLOG  return this->Raw(); }//ÖØÔØ&²Ù×÷·û ·µ»Øº¯ÊıµÄµØÖ·
-            //ºê¶¨Òå·µ»Øµ±Ç°Æ½Ì¨µÄÃû×Ö
+
+			inline virtual ~CachedFunctionBase() {
+
+                AUTOLOG 
+            }//ææ„å‡½æ•°è‡ªåŠ¨è®°å½•æ—¥å¿—ï¼Œç¡®ä¿çˆ¶ç±»çš„ææ„å‡½æ•°è¢«è°ƒç”¨
+
+            inline void SetCacheValidTime(TimeType cacheTime) noexcept {//è®¾ç½®ç¼“å­˜çš„æœ‰æ•ˆæ—¶é—´
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                m_cacheTime = cacheTime;//è®¾ç½®ç¼“å­˜çš„æ—¶é—´
+            }//è®¾ç½®ç¼“å­˜çš„æ—¶é—´
+
+            inline TimeType GetCacheTime() const { 
+
+                AUTOLOG
+
+                return m_cacheTime;
+            }//è·å–ç¼“å­˜çš„æ—¶é—´
+            inline operator void* () { 
+                AUTOLOG
+
+                return m_funcAddr;
+            }//è¿”å›å‡½æ•°çš„åœ°å€
+
+            inline bool operator==(const CachedFunctionBase& others) noexcept { 
+
+                AUTOLOG 
+
+                return m_funcAddr == others.m_funcAddr; 
+
+            }//æ¯”è¾ƒä¸¤ä¸ªå…ƒç´ çš„ç›¸ç­‰ä¸å¦
+
+            template<typename Func>inline bool operator==(Func&& f) noexcept { 
+
+                AUTOLOG  
+
+                return m_funcAddr == &f;
+            
+            }//æ¯”è¾ƒä¸¤ä¸ªå…ƒç´ çš„ç›¸ç­‰ä¸å¦
+
+            inline bool operator!=(const CachedFunctionBase& others) noexcept { 
+
+                AUTOLOG 
+
+                return m_funcAddr != others.m_funcAddr;
+
+            }//æ¯”è¾ƒä¸¤ä¸ªå…ƒç´ çš„ç›¸ç­‰ä¸å¦
+
+            template<typename Func>
+            inline bool operator!=(Func&& f) noexcept {
+                AUTOLOG 
+
+                return m_funcAddr != &f;
+
+            }//æ¯”è¾ƒä¸¤ä¸ªå…ƒç´ çš„ç›¸ç­‰ä¸å¦
+
+            inline operator bool()noexcept {
+               AUTOLOG 
+
+               return (bool)m_funcAddr;
+
+            }//åˆ¤æ–­æ˜¯å¦ä¸ºç©º
+
+            inline auto Raw() const noexcept {
+                AUTOLOG 
+
+                return m_funcAddr;
+
+            }//è¿”å›å‡½æ•°çš„åœ°å€
+
+            inline auto operator&() { 
+                AUTOLOG  
+
+                return this->Raw(); 
+
+            }//é‡è½½&æ“ä½œç¬¦ è¿”å›å‡½æ•°çš„åœ°å€
+
+            //å®å®šä¹‰è¿”å›å½“å‰å¹³å°çš„åå­—
             SAFE_BUFFER inline std::string GetPlatformName() const noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                    //ÅĞ¶ÏÆ½Ì¨
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                    //åˆ¤æ–­å¹³å°
 #if defined(_NTDDK_)
-                    return xorstr("Windows_Kernel");//WindowsÄÚºË
+                    return xorstr("Windows_Kernel");//Windowså†…æ ¸
 #elif defined(_WIN64)
-                    return xorstr("Windows_64-bit");//Windows 64Î»
+                    return xorstr("Windows_64-bit");//Windows 64ä½
 #elif defined(_WIN32)
-                    return xorstr("Windows_32-bit");//Windows 32Î»
+                    return xorstr("Windows_32-bit");//Windows 32ä½
 #elif defined(__APPLE__) || defined(__MACH__)
                     return xorstr("Mac_OS");
 #elif defined(__linux__)
@@ -482,616 +912,1218 @@ namespace memoizationsearch {
                     return xorstr("FreeBSD");
 
 #else
-                    return "Unknown_Platform";//Î´ÖªÆ½Ì¨
+                    return "Unknown_Platform";//æœªçŸ¥å¹³å°
 #endif
             }
-            //Í¨¹ıÀàĞÍºÍÎÄ¼şÃû»ñÈ¡Î¨Ò»µÄÃû×Ö£¬szFileNameÊÇÎÄ¼şÃû ÆäËû¶«Î÷¶¼ÊÇ¶îÍâµÄ
-            template<typename T>SAFE_BUFFER inline std::string GetUniqueName(const T&, const char* szFileName) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                static const auto&& platform = GetPlatformName();//»ñÈ¡Æ½Ì¨µÄÃû×Ö
-                return nonstd::PathTruncate(szFileName + nonstd::SizeToString(typeid(T).hash_code())) + platform;//·µ»ØÎÄ¼şÃû¼ÓÉÏÀàĞÍµÄhash¼ÓÉÏÆ½Ì¨µÄÃû×Ö ×î´ó³¤¶ÈÎªMEMOIZATIONSEARCH
+
+            //é€šè¿‡ç±»å‹å’Œæ–‡ä»¶åè·å–å”¯ä¸€çš„åå­—ï¼ŒszFileNameæ˜¯æ–‡ä»¶å å…¶ä»–ä¸œè¥¿éƒ½æ˜¯é¢å¤–çš„
+            template<typename T>
+            SAFE_BUFFER inline std::string GetUniqueName(const T&, const char* szFileName) {
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                static const auto&& platform = GetPlatformName();//è·å–å¹³å°çš„åå­—
+
+                return nonstd::PathTruncate(szFileName + nonstd::SizeToString(typeid(T).hash_code())) + platform;//è¿”å›æ–‡ä»¶ååŠ ä¸Šç±»å‹çš„hashåŠ ä¸Šå¹³å°çš„åå­— æœ€å¤§é•¿åº¦ä¸ºMEMOIZATIONSEARCH
             }
+
             inline std::string GetObjectName() const noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                return typeid(CachedFunctionBase).name();//·µ»ØÀàĞÍµÄÃû×Ö
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return typeid(CachedFunctionBase).name();//è¿”å›ç±»å‹çš„åå­—
             }
+
         };
-        //ÉêÃ÷¼üµÄÀàĞÍÎ»¿É±äµÄ²ÎÊıµÄtuple
-        template<typename... Args>using KeyType = std::tuple<std::decay_t<Args>...>;
-        //±È½ÏtupleÄÚÔªËØÊÇ·ñÒ»Ò»ÏàµÈ µİ¹é¾ßÓĞ¶ÌÂ·Âß¼­ tupleÄÚÊÇÈÎÒâµÄÔªËØ¹¹³É °´ÀíÀ´ËµÖ»ÊÇÎªÁËº¯Êı²ÎÊıµÄtuple°üÅĞ¶ÏÊÇ·ñÏàµÈ ²ÎÊıÓ¦¸Ã²»»áÌ«¶à¶ø±¬Õ» µİ¹é±¾Ìì³É µü´ú·½ÊÇÉñ£¬ÎÒÊÇ²»ÏëÓÃµİ¹éµÄµ«ÊÇC++14±ê×¼µÄ...°üÕ¹¿ª·Ç³£ÈõÖÇÒª²»È»¾ÍÖ»ÄÜÈ«ÅĞ¶Ï ÍêÈ«Ã»¶ÌÂ·Âß¼­ ¸ü¶àĞ´·¨Ì½ÌÖÇë×Ô¼ºÃşË÷
-        template<typename T>class is_hashable {//ÅĞ¶ÏÊÇ·ñ¿ÉÒÔhash
+
+        //ç”³æ˜é”®çš„ç±»å‹ä½å¯å˜çš„å‚æ•°çš„tuple
+        template<typename... Args>
+        using KeyType = std::tuple<std::decay_t<Args>...>;
+        //æ¯”è¾ƒtupleå†…å…ƒç´ æ˜¯å¦ä¸€ä¸€ç›¸ç­‰ é€’å½’å…·æœ‰çŸ­è·¯é€»è¾‘ tupleå†…æ˜¯ä»»æ„çš„å…ƒç´ æ„æˆ æŒ‰ç†æ¥è¯´åªæ˜¯ä¸ºäº†å‡½æ•°å‚æ•°çš„tupleåŒ…åˆ¤æ–­æ˜¯å¦ç›¸ç­‰ å‚æ•°åº”è¯¥ä¸ä¼šå¤ªå¤šè€Œçˆ†æ ˆ é€’å½’æœ¬å¤©æˆ è¿­ä»£æ–¹æ˜¯ç¥ï¼Œæˆ‘æ˜¯ä¸æƒ³ç”¨é€’å½’çš„ä½†æ˜¯C++14æ ‡å‡†çš„...åŒ…å±•å¼€éå¸¸å¼±æ™ºè¦ä¸ç„¶å°±åªèƒ½å…¨åˆ¤æ–­ å®Œå…¨æ²¡çŸ­è·¯é€»è¾‘ æ›´å¤šå†™æ³•æ¢è®¨è¯·è‡ªå·±æ‘¸ç´¢
+        template<typename T>
+        class is_hashable {//åˆ¤æ–­æ˜¯å¦å¯ä»¥hash
+
             template<typename U>static auto test(int) -> decltype(std::hash<U>{}(std::declval<U>()), std::true_type{});
+
             template<typename>static std::false_type test(...) {};
+
         public:
+
             static constexpr bool value = decltype(test<T>(0))::value;
         };
+
         template <std::size_t I = 0, typename... Args, typename Tuple = std::tuple<Args...>>
         SAFE_BUFFER static inline bool const CompareTuple(Tuple&& tupA, Tuple&& tupB) noexcept {
-            //AUTOLOGPERFIX(std::to_string(I))//ÈÕÖ¾´òÓ¡×Ô¼ºÊÇÄÄÒ»¸öCompareTuple ·½±ãÖªµÀ×Ô¼ºÊÇ¼¸²ãµİ¹é
+            //AUTOLOGPERFIX(std::to_string(I))//æ—¥å¿—æ‰“å°è‡ªå·±æ˜¯å“ªä¸€ä¸ªCompareTuple æ–¹ä¾¿çŸ¥é“è‡ªå·±æ˜¯å‡ å±‚é€’å½’
+
             const auto& tupleA= std::forward<Tuple>(tupA);
+
             const auto& tupleB= std::forward<Tuple>(tupB);
+
             const auto& elemA = std::get<I>(tupleA);
+
             const auto& elemB = std::get<I>(tupleB);
+
             using ItemType = decltype(elemA);
+
             bool equal = false;
-			if constexpr (std::is_arithmetic<ItemType>::value || !is_hashable<ItemType>::value) {//ÅĞ¶ÏÊÇ·ñÊÇ»ù±¾ĞÍ
+
+			if constexpr (std::is_arithmetic<ItemType>::value || !is_hashable<ItemType>::value) {//åˆ¤æ–­æ˜¯å¦æ˜¯åŸºæœ¬å‹
+
                 equal=(elemA == elemB);
+
             } else {
-                equal=(std::hasher(elemA) == std::hasher(elemB));//·Ç»ù±¾ÀàĞÍ¾Í¶ÔÆäÇóhash±È½Ï
+
+                equal=(std::hasher(elemA) == std::hasher(elemB));//éåŸºæœ¬ç±»å‹å°±å¯¹å…¶æ±‚hashæ¯”è¾ƒ
+
             }
-            if (LIKELY(equal)) {
-                if constexpr (I + 1 < std::tuple_size<std::decay_t<Tuple>>::value) {//ÅĞ¶ÏÊÇ²»ÊÇ×îºóÒ»¸ö
-                    return CompareTuple<I + 1>(tupleA, tupleB);//·Ç×îºóÒ»¸ö¾Íµİ¹é
-                }else {
-                    return true;//ÉÙµİ¹éÁËÒ»´Î µİ¹é»ù
-                }
+
+            if (UNLIKELY(!equal)) return false;
+
+            if constexpr (I + 1 < std::tuple_size<std::decay_t<Tuple>>::value) {//åˆ¤æ–­æ˜¯ä¸æ˜¯æœ€åä¸€ä¸ª
+
+                return CompareTuple<I + 1>(tupleA, tupleB);//éæœ€åä¸€ä¸ªå°±é€’å½’
+
+            }else {
+
+                return true;//å°‘é€’å½’äº†ä¸€æ¬¡ é€’å½’åŸº
+
             }
-            return false;
         }
-        //»º´æµÄÔªËØÀàĞÍ ÓÉ·µ»ØÖµºÍÓĞĞ§ÆÚ×é³ÉµÄpair ÓĞĞ§ÆÚÊÇÒ»¸ö·µ»ØÖµ ÓĞĞ§ÆÚÊÇÒ»¸öÊ±¼ä´Á ÔÚÕâ¸öÊ±¼ä´ÁÖ®Ç°ÊÇÓĞĞ§µÄ
-        template<typename R>using CacheitemType = std::pair<std::decay_t<R>, TimeType>;
-        template<typename R, typename... Args>struct CachedFunction : public CachedFunctionBase {//¾ßÓĞ²ÎÊıµÄ»º´æº¯ÊıÊÇÒ»¸ö¼Ì³Ğ×ÔCachedFunctionBaseµÄÀà
-            using   FuncType =  R(std::decay_t<Args>...);//ÉùÃ÷º¯ÊıÀàĞÍ
-            mutable std::function<FuncType> m_Func;//º¯Êı¶ÔÏó
-            using   ValueType = CacheitemType<R>;//»º´æµÄÔªËØÀàĞÍ
+
+        //ç¼“å­˜çš„å…ƒç´ ç±»å‹ ç”±è¿”å›å€¼å’Œæœ‰æ•ˆæœŸç»„æˆçš„pair æœ‰æ•ˆæœŸæ˜¯ä¸€ä¸ªè¿”å›å€¼ æœ‰æ•ˆæœŸæ˜¯ä¸€ä¸ªæ—¶é—´æˆ³ åœ¨è¿™ä¸ªæ—¶é—´æˆ³ä¹‹å‰æ˜¯æœ‰æ•ˆçš„
+        template<typename R>
+        using CacheitemType = std::pair<std::decay_t<R>, TimeType>;
+
+        template<typename R, typename... Args>
+        struct CachedFunction : public CachedFunctionBase {//å…·æœ‰å‚æ•°çš„ç¼“å­˜å‡½æ•°æ˜¯ä¸€ä¸ªç»§æ‰¿è‡ªCachedFunctionBaseçš„ç±»
+
+            using   FuncType =  R(std::decay_t<Args>...);//å£°æ˜å‡½æ•°ç±»å‹
+
+            mutable std::function<FuncType> m_Func;//å‡½æ•°å¯¹è±¡
+
+            using   ValueType = CacheitemType<R>;//ç¼“å­˜çš„å…ƒç´ ç±»å‹
+
             using   ArgsType = KeyType<Args...>;
-            using   CacheType = std::unordered_map<ArgsType, ValueType>;//Ò»¸ö¹şÏ£±í´æ´¢»º´æÀàĞÍ
+
+            using   CacheType = std::unordered_map<ArgsType, ValueType>;//ä¸€ä¸ªå“ˆå¸Œè¡¨å­˜å‚¨ç¼“å­˜ç±»å‹
+
             using   CallFuncType = std::function<bool(const R&, const ArgsType&)>;
-            using   iterator = typename CacheType::iterator;//»º´æµü´úÆ÷µÄÀàĞÍ
-            mutable std::unique_ptr<CacheType> m_Cache;//ÓÃÖÇÄÜÖ¸Õë Ä¿µÄÊÇÎªÁË²»ÓÃÊÖ¶¯ÊÍ·ÅÄÚ´æ ÔÚ¶ÔÏóÎö¹¹µÄÊ±ºò»á×Ô¶¯ÊÍ·Å
+
+            using   iterator = typename CacheType::iterator;//ç¼“å­˜è¿­ä»£å™¨çš„ç±»å‹
+
+            mutable std::unique_ptr<CacheType> m_Cache;//ç”¨æ™ºèƒ½æŒ‡é’ˆ ç›®çš„æ˜¯ä¸ºäº†ä¸ç”¨æ‰‹åŠ¨é‡Šæ”¾å†…å­˜ åœ¨å¯¹è±¡ææ„çš„æ—¶å€™ä¼šè‡ªåŠ¨é‡Šæ”¾
+
             mutable std::unordered_map<HCALLBACK, CallFuncType> m_FilerCallBacks;
+
             mutable bool m_FilterCacheStatus = true;
+
             mutable std::size_t m_MaxRecursiveCount = 2048;
-            mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // »º´æ½á¹ûºÍÊ±¼ä´Á
-            inline  iterator begin() { AUTOLOG return m_Cache->begin(); }//·µ»Ø»º´æµÄ¿ªÊ¼µü´úÆ÷ ÓÃÓÚ±éÀú
-            inline  iterator end() { AUTOLOG return m_Cache->end(); }//·µ»Ø»º´æµÄÄ©Î²µü´úÆ÷ ÓÃÓÚ±éÀú
-            inline bool operator<(const CachedFunction& others) { AUTOLOG  return m_Cache->size() < others.m_Cache->size(); }//±È½Ï»º´æ´óĞ¡
-            inline bool operator>(const CachedFunction& others) { AUTOLOG  return m_Cache->size() > others.m_Cache->size(); }//±È½Ï»º´æ´óĞ¡
-            inline bool operator<=(const CachedFunction& others) { AUTOLOG  return m_Cache->size() <= others.m_Cache->size(); }//±È½Ï»º´æ´óĞ¡
-            inline auto Raw()const { AUTOLOG return m_funcAddr;}//·µ»Øº¯ÊıÖ¸Õëµ«ÊÇlambdaÊÇÃ»ÓĞº¯ÊıÖ¸ÕëµÄÖ»ÓĞº¯Êı¶ÔÏóµÄµØÖ·
-            inline auto operator&() const { AUTOLOG  return m_funcAddr; }//·µ»Øº¯ÊıÖ¸Õëµ«ÊÇlambdaÊÇÃ»ÓĞº¯ÊıÖ¸ÕëµÄÖ»ÓĞº¯Êı¶ÔÏóµÄµØÖ·
-            inline bool operator>=(const CachedFunction& others) { AUTOLOG return m_Cache->size() >= others.m_Cache->size();}//±È½Ï»º´æ´óĞ¡
-            //¿½±´¹¹Ôìº¯ÊıÎ¯ÍĞÁË¸¸ÀàµÄ¹¹Ôìº¯Êı ²¢ÇÒ¿½±´ÁË»º´æ
-			inline bool& GetFilterCacheStatusRef() {//»ñÈ¡¹ıÂË»Øµ÷ÊÇ·ñ»º´æ×´Ì¬µÄÒıÓÃ ×¢Òâ£ºÉèÖÃÎªfalseËäÈ»Ìá¸ßÁËÊµÊ±ĞÔµ«ÊÇ½µµÍÁË¿ÉÓÃĞÔ
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // ç¼“å­˜ç»“æœå’Œæ—¶é—´æˆ³
+
+            inline  iterator begin() {
+                AUTOLOG 
+
+                return m_Cache->begin();
+
+            }//è¿”å›ç¼“å­˜çš„å¼€å§‹è¿­ä»£å™¨ ç”¨äºéå†
+
+            inline  iterator end() {
+                AUTOLOG
+
+                return m_Cache->end(); 
+
+            }//è¿”å›ç¼“å­˜çš„æœ«å°¾è¿­ä»£å™¨ ç”¨äºéå†
+
+            inline bool operator<(const CachedFunction& others) {
+                AUTOLOG 
+
+                return m_Cache->size() < others.m_Cache->size(); 
+
+            }//æ¯”è¾ƒç¼“å­˜å¤§å°
+
+            inline bool operator>(const CachedFunction& others) {
+                AUTOLOG
+                    
+                return m_Cache->size() > others.m_Cache->size(); 
+
+            }//æ¯”è¾ƒç¼“å­˜å¤§å°
+
+            inline bool operator<=(const CachedFunction& others) {
+                AUTOLOG  
+                    
+                return m_Cache->size() <= others.m_Cache->size();
+
+            }//æ¯”è¾ƒç¼“å­˜å¤§å°
+
+            inline auto Raw()const { 
+                AUTOLOG
+
+                return m_funcAddr;
+
+            }//è¿”å›å‡½æ•°æŒ‡é’ˆä½†æ˜¯lambdaæ˜¯æ²¡æœ‰å‡½æ•°æŒ‡é’ˆçš„åªæœ‰å‡½æ•°å¯¹è±¡çš„åœ°å€
+
+            inline auto operator&() const { 
+                AUTOLOG
+
+               return m_funcAddr;
+
+            }//è¿”å›å‡½æ•°æŒ‡é’ˆä½†æ˜¯lambdaæ˜¯æ²¡æœ‰å‡½æ•°æŒ‡é’ˆçš„åªæœ‰å‡½æ•°å¯¹è±¡çš„åœ°å€
+
+            inline bool operator>=(const CachedFunction& others) {
+                AUTOLOG 
+
+                return m_Cache->size() >= others.m_Cache->size();
+
+            }//æ¯”è¾ƒç¼“å­˜å¤§å°
+
+            //æ‹·è´æ„é€ å‡½æ•°å§”æ‰˜äº†çˆ¶ç±»çš„æ„é€ å‡½æ•° å¹¶ä¸”æ‹·è´äº†ç¼“å­˜
+			inline bool& GetFilterCacheStatusRef() {//è·å–è¿‡æ»¤å›è°ƒæ˜¯å¦ç¼“å­˜çŠ¶æ€çš„å¼•ç”¨ æ³¨æ„ï¼šè®¾ç½®ä¸ºfalseè™½ç„¶æé«˜äº†å®æ—¶æ€§ä½†æ˜¯é™ä½äº†å¯ç”¨æ€§
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 return m_FilterCacheStatus;
+
             }
+
             SAFE_BUFFER inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-				return (m_FilterCacheStatus) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
+                //AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+				return (LIKELY(m_FilterCacheStatus)) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
+
             }
+
             SAFE_BUFFER inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (m_FilerCallBacks.empty()) return true; // Èç¹ûÃ»ÓĞ¹ıÂË»Øµ÷£¬Ö±½Ó·µ»Ø true
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (m_FilerCallBacks.empty()) return true; // å¦‚æœæ²¡æœ‰è¿‡æ»¤å›è°ƒï¼Œç›´æ¥è¿”å› true
+
                 for (const auto& callback : m_FilerCallBacks) {
+
                     if (!callback.second(value, argsTuple)) return false;
                 }
+
                 return true;
             }
+
             SAFE_BUFFER inline bool FilterCache(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (m_FilerCallBacks.empty()) return true; // Èç¹ûÃ»ÓĞ¹ıÂË»Øµ÷£¬Ö±½Ó·µ»Ø true
-                // ¼ì²é»º´æÖĞÊÇ·ñÒÑÓĞ½á¹û
+
+                //AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+                if (m_FilerCallBacks.empty()) return true; // å¦‚æœæ²¡æœ‰è¿‡æ»¤å›è°ƒï¼Œç›´æ¥è¿”å› true
+
+                // æ£€æŸ¥ç¼“å­˜ä¸­æ˜¯å¦å·²æœ‰ç»“æœ
                 auto it = m_FilterResultCache.find(argsTuple);
-                if (it != m_FilterResultCache.end()) {
-                    const auto& cached_result = it->second;
-                    // Èç¹û»º´æÎ´¹ıÆÚ
-                    if (cached_result.second > nowtime) {
-                        return cached_result.first; // ·µ»Ø»º´æ½á¹û
-                    }else {
-                        m_FilterResultCache.erase(it); // Èç¹û»º´æ¹ıÆÚ£¬ÒÆ³ıËü
-                    }
+
+                if (it == m_FilterResultCache.end()) return false;
+
+                const auto& cached_result = it->second;
+
+                // å¦‚æœç¼“å­˜æœªè¿‡æœŸ
+                if (cached_result.second > nowtime) {
+
+                    return cached_result.first; // è¿”å›ç¼“å­˜ç»“æœ
+                }else {
+
+                    m_FilterResultCache.erase(it); // å¦‚æœç¼“å­˜è¿‡æœŸï¼Œç§»é™¤å®ƒ
                 }
-                // ·Ö±ğ´æ´¢·µ»Ø false µÄ»Øµ÷ºÍ true µÄ»Øµ÷
-                std::list<CallFuncType> falseCallbacks;
-                std::list<CallFuncType> trueCallbacks;
-                // »ñÈ¡ËùÓĞ»Øµ÷µÄ½á¹û
+
+                // åˆ†åˆ«å­˜å‚¨è¿”å› false çš„å›è°ƒå’Œ true çš„å›è°ƒ
+                std::list<CallFuncType>&& falseCallbacks{};
+
+                std::list<CallFuncType>&& trueCallbacks{};
+
+                // è·å–æ‰€æœ‰å›è°ƒçš„ç»“æœ
                 for (const auto& callback : m_FilerCallBacks) {
+
                     if (!callback.second(value, argsTuple)) {
-                        falseCallbacks.push_back(callback.second); // ´æ´¢·µ»Ø false µÄ»Øµ÷
+
+                        falseCallbacks.push_back(callback.second); // å­˜å‚¨è¿”å› false çš„å›è°ƒ
                     }else {
-                        trueCallbacks.push_back(callback.second); // ´æ´¢·µ»Ø true µÄ»Øµ÷
+
+                        trueCallbacks.push_back(callback.second); // å­˜å‚¨è¿”å› true çš„å›è°ƒ
                     }
                 }
-                // ³¢ÊÔÖ®Ç°·µ»Ø false µÄ»Øµ÷
+
+                // å°è¯•ä¹‹å‰è¿”å› false çš„å›è°ƒ
                 for (const auto& callback : falseCallbacks) {
                     if (callback(value, argsTuple)) {
-                        // ´æ´¢½á¹ûÎª true£¬²¢ÉèÖÃ¹ıÆÚÊ±¼ä
+
+                        // å­˜å‚¨ç»“æœä¸º trueï¼Œå¹¶è®¾ç½®è¿‡æœŸæ—¶
                         m_FilterResultCache[argsTuple] = { true,safeadd<TimeType>(nowtime, m_cacheTime) };
+
                         return true;
                     }
                 }
-                // Èç¹ûÃ»ÓĞÕÒµ½ true µÄ½á¹û£¬³¢ÊÔÖ®Ç°·µ»Ø true µÄ»Øµ÷
+
+                // å¦‚æœæ²¡æœ‰æ‰¾åˆ° true çš„ç»“æœï¼Œå°è¯•ä¹‹å‰è¿”å› true çš„å›è°ƒ
                 for (const auto& callback : trueCallbacks) {
                     if (!callback(value, argsTuple)) {
-                        // ´æ´¢½á¹ûÎª false£¬²¢ÉèÖÃ¹ıÆÚÊ±¼ä
+
+                        // å­˜å‚¨ç»“æœä¸º falseï¼Œå¹¶è®¾ç½®è¿‡æœŸæ—¶é—´
                         m_FilterResultCache[argsTuple] = { false, safeadd<TimeType>(nowtime, m_cacheTime) };
+
                         return false;
                     }
                 }
-                // ´æ´¢½á¹ûÎª true£¬²¢ÉèÖÃ¹ıÆÚÊ±¼ä
+
+                // å­˜å‚¨ç»“æœä¸º trueï¼Œå¹¶è®¾ç½®è¿‡æœŸæ—¶é—´
                 m_FilterResultCache[argsTuple] = { true, safeadd<TimeType>(nowtime, m_cacheTime) };
+
                 return true;
             }
+
             [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-				if (!callbacks) return INVALID_CALLBACK_HANDLE;//»Øµ÷Îª¿Õ callbacksÊÇfunction¶ÔÏó
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+				if (!callbacks) return INVALID_CALLBACK_HANDLE;//å›è°ƒä¸ºç©º callbacksæ˜¯functionå¯¹è±¡
+
                 HCALLBACK randnumber = INVALID_CALLBACK_HANDLE;
+
                 do {
+
                     randnumber = getRandom<HCALLBACK>(0, INFINITYCACHE);
+
 				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
+
                 m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
+
                 if (UNLIKELY(!bReserverOld))ApplyFilter();
+
                 return (HCALLBACK)randnumber;
             }
+
             SAFE_BUFFER inline bool DeleteFilterCallbacks(HCALLBACK& hcallback) noexcept {
-                AUTOLOG; // ×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return false; // ·µ»Ø nullptr ±íÊ¾ÎŞĞ§»Øµ÷
-                ScopeLock lock(m_mutex); // ¼ÓËø±£Ö¤Ïß³Ì°²È«
-				auto it = GetFilterCallbacks(hcallback);//²éÕÒm_FilerCallBacksÖĞµÄ»Øµ÷
-                if (UNLIKELY(it == m_FilerCallBacks.end())) return false; // ·µ»Ø nullptr ±íÊ¾Î´ÕÒµ½»Øµ÷
-                m_FilerCallBacks.erase(it); // É¾³ı»Øµ÷
+                AUTOLOG; // è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return false; // è¿”å› nullptr è¡¨ç¤ºæ— æ•ˆå›è°ƒ
+
+                ScopeLock lock(m_mutex); // åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+				auto it = GetFilterCallbacks(hcallback);//æŸ¥æ‰¾m_FilerCallBacksä¸­çš„å›è°ƒ
+
+                if (UNLIKELY(it == m_FilerCallBacks.end())) return false; // è¿”å› nullptr è¡¨ç¤ºæœªæ‰¾åˆ°å›è°ƒ
+
+                m_FilerCallBacks.erase(it); // åˆ é™¤å›è°ƒ
+
                 hcallback = INVALID_CALLBACK_HANDLE;
-                return true; // ·µ»Ø±»É¾³ıµÄ»Øµ÷ÖÇÄÜÖ¸Õë
+
+                return true; // è¿”å›è¢«åˆ é™¤çš„å›è°ƒæ™ºèƒ½æŒ‡é’ˆ
             }
+
 			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
-				AUTOLOG; // ×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-				ScopeLock lock(m_mutex); // ¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (m_FilerCallBacks.empty()) return false;//»Øµ÷ÁĞ±íÎª¿Õ·µ»Øfalse
-				m_FilerCallBacks.clear(); // Çå¿ÕËùÓĞ»Øµ÷
+				AUTOLOG; // è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+				ScopeLock lock(m_mutex); // åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (m_FilerCallBacks.empty()) return false;//å›è°ƒåˆ—è¡¨ä¸ºç©ºè¿”å›false
+
+				m_FilerCallBacks.clear(); // æ¸…ç©ºæ‰€æœ‰å›è°ƒ
+
                 return true;
 			}
+
             SAFE_BUFFER inline bool ChangeFilterCallBacks(const HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (!ValidCallBackHandle(hCallBack)|| !newcallbacks|| m_FilerCallBacks.empty()) return false;//Ã»ÓĞ»Øµ÷¾ä±ú
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-				auto it = GetFilterCallbacks(hCallBack);//»ñÈ¡»Øµ÷µÄµü´úÆ÷
-                if (it == m_FilerCallBacks.end()) return false;//Ã»ÕÒµ½ÀÏµÄ
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (!ValidCallBackHandle(hCallBack)|| !newcallbacks|| m_FilerCallBacks.empty()) return false;//æ²¡æœ‰å›è°ƒå¥æŸ„
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+				auto it = GetFilterCallbacks(hCallBack);//è·å–å›è°ƒçš„è¿­ä»£å™¨
+
+                if (it == m_FilerCallBacks.end()) return false;//æ²¡æ‰¾åˆ°è€çš„
+
                 it->second = newcallbacks;
+
                 if (UNLIKELY(!bReserveOld))ApplyFilter();
+
                 return true;
             }
+
             SAFE_BUFFER inline void ApplyFilter() {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                std::async([this]() {
-                    ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                    for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (!FilterNoCache(it->second.first, it->first)) ? m_Cache->erase(it) : ++it) {}
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                std::ignore=std::async([this]() {
+
+                    ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                    auto nowtime = MemoroizationGetCurrentTime();
+
+                    for (auto it = m_Cache->begin(); it != m_Cache->end(); ) {
+
+                        if (!Filter(it->second.first, it->first, nowtime)) {
+
+                            it = m_Cache->erase(it);
+
+                        }else {
+
+                            ++it;
+                        }
+                    }
                 });
             }
+
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//Ã»ÓĞ»Øµ÷¾ä±ú
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//æ²¡æœ‰å›è°ƒå¥æŸ„
+
                 return m_FilerCallBacks.find(hcallback);
             }
+
             SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 return m_FilerCallBacks;
             }
-            SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (others.m_Cache &&!others.m_Cache->empty())for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//¿½±´ËùÓĞµÄ»º´æ
-                if (LIKELY((bool)m_Cache)) {//Èç¹û»º´æµÄÄÚ´æ²»Îª¿Õ 
-                    m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//Ô¤ÏÈ·ÖÅä¿Õ¼ä
+
+            SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, 
+
+                others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (others.m_Cache &&!others.m_Cache->empty())for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//æ‹·è´æ‰€æœ‰çš„ç¼“å­˜
+
+                if (LIKELY((bool)m_Cache)) {//å¦‚æœç¼“å­˜çš„å†…å­˜ä¸ä¸ºç©º 
+
+                    m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//é¢„å…ˆåˆ†é…ç©ºé—´
+
                 }
             }
-            //»ñÈ¡»º´æº¯ÊıµÄÃû×Ö
+
+            //è·å–ç¼“å­˜å‡½æ•°çš„åå­—
             inline std::string GetObjectName() const noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                return typeid(CachedFunction).name();//·µ»ØÀàĞÍµÄÃû×Ö
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return typeid(CachedFunction).name();//è¿”å›ç±»å‹çš„åå­—
+
             }
+
             inline CachedFunction(const std::initializer_list<std::pair<ArgsType, ValueType>>& list) : CachedFunctionBase(nullptr, CallType::cdeclcall, MEMOIZATIONSEARCH), m_Cache(std::make_unique<CacheType>()) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
                 for (auto& item : list)m_Cache->insert(item);
-                if (LIKELY((bool)m_Cache)) {
-                    m_Cache->reserve(MEMOIZATIONSEARCH);//Ô¤ÏÈ·ÖÅä¿Õ¼ä
-                }
+
+                if (LIKELY((bool)m_Cache))m_Cache->reserve(MEMOIZATIONSEARCH);//é¢„å…ˆåˆ†é…ç©ºé—´
             }
+
             inline CachedFunction(CachedFunction&& other) noexcept : CachedFunctionBase(other.m_funcAddr, other.m_callType, other.m_cacheTime), m_Func(std::move(other.m_Func)) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 m_Cache=std::move(other.m_Cache);
+
             }
+
             inline ~CachedFunction() noexcept { 
+
                 AUTOLOG 
+
             }
+
             inline CachedFunction& operator=(CachedFunction&& others)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                m_Func = std::move(others.m_Func);//º¯Êı¶ÔÏóÒÆ¶¯
-                m_funcAddr = others.m_funcAddr;//º¯ÊıµÄµØÖ·¸³Öµ
-                others.m_funcAddr = 0;//ÖÃ¿Õ
-                if (LIKELY((bool)m_Cache)) {//Èç¹û»º´æµÄÄÚ´æ²»Îª¿Õ
-                    m_Cache = std::move(others.m_Cache);//»º´æÒÆ¶¯
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                m_Func = std::move(others.m_Func);//å‡½æ•°å¯¹è±¡ç§»åŠ¨
+
+                m_funcAddr = others.m_funcAddr;//å‡½æ•°çš„åœ°å€èµ‹å€¼
+
+                others.m_funcAddr = 0;//ç½®ç©º
+
+                if (LIKELY((bool)m_Cache)) {//å¦‚æœç¼“å­˜çš„å†…å­˜ä¸ä¸ºç©º
+
+                    m_Cache = std::move(others.m_Cache);//ç¼“å­˜ç§»åŠ¨
+
                 }
+
                 return *this;
             }
-            inline auto operator*()noexcept { return *m_Cache; }//·µ»Ø»º´æµÄÒıÓÃ
+
+            inline auto operator*()noexcept { 
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return *m_Cache;
+
+            }//è¿”å›ç¼“å­˜çš„å¼•ç”¨
+
             inline CachedFunction& operator=(const CachedFunction& others)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                m_Cache = std::make_unique<CacheType>();//ÖØĞÂ·ÖÅäÄÚ´æ
-                m_Cache->reserve(others.m_Cache->size());//Ô¤ÏÈ·ÖÅä¿Õ¼ä
-                if (!others.m_Cache->empty())for (const auto& pair : *others.m_Cache) m_Cache->insert(pair);//¿½±´ËùÓĞµÄ»º´æµ½ĞÂµÄ»º´æ
-                m_Func = others.m_Func;//º¯Êı¶ÔÏó¸³Öµ 
-                m_funcAddr = others.m_funcAddr;//º¯ÊıµÄµØÖ·¸³Öµ
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                m_Cache = std::make_unique<CacheType>();//é‡æ–°åˆ†é…å†…å­˜
+
+                m_Cache->reserve(others.m_Cache->size());//é¢„å…ˆåˆ†é…ç©ºé—´
+
+                if (!others.m_Cache->empty())for (const auto& pair : *others.m_Cache) m_Cache->insert(pair);//æ‹·è´æ‰€æœ‰çš„ç¼“å­˜åˆ°æ–°çš„ç¼“å­˜
+                m_Func = others.m_Func;//å‡½æ•°å¯¹è±¡èµ‹å€¼ 
+
+                m_funcAddr = others.m_funcAddr;//å‡½æ•°çš„åœ°å€èµ‹å€¼
+
                 return *this;
             }
-            inline operator std::function<FuncType>()noexcept { AUTOLOG return m_Func; }
-            inline CachedFunction& operator+(const CachedFunction& others) noexcept {//ºÏ²¢»º´æÖØÔØ+²Ù×÷·û
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (!others.m_Cache->empty()) {//ÆäËûµÄ»º´æ²»Îª¿Õ
-                    for (const auto& pair : *others.m_Cache){//±éÀúËùÓĞµÄ»º´æ
-                        if (m_Cache->find(pair.first) == m_Cache->end())m_Cache->insert(pair);//½ö½ö¿½±´²»´æÔÚµÄ»º´æ
+
+            inline operator std::function<FuncType>()noexcept {
+
+                AUTOLOG
+
+                return m_Func;
+            }
+
+            inline CachedFunction& operator+(const CachedFunction& others) noexcept {//åˆå¹¶ç¼“å­˜é‡è½½+æ“ä½œç¬¦
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (!others.m_Cache->empty()) {//å…¶ä»–çš„ç¼“å­˜ä¸ä¸ºç©º
+
+                    for (const auto& pair : *others.m_Cache){//éå†æ‰€æœ‰çš„ç¼“å­˜
+
+                        if (m_Cache->find(pair.first) == m_Cache->end())m_Cache->insert(pair);//ä»…ä»…æ‹·è´ä¸å­˜åœ¨çš„ç¼“å­˜
                     }
                 }
-                auto nowtime = ApproximatelyGetCurrentTime();//»ñÈ¡µ±Ç°Ê±¼ä
-                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//±éÀúËùÓĞµÄ»º´æÉ¾³ı¹ıÆÚµÄ»º´æ
-                return *this;//·µ»Ø×Ô¼º
+
+                auto nowtime = MemoroizationGetCurrentTime();//è·å–å½“å‰æ—¶é—´
+
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//éå†æ‰€æœ‰çš„ç¼“å­˜åˆ é™¤è¿‡æœŸçš„ç¼“å­˜
+
+                return *this;//è¿”å›è‡ªå·±
             }
-            inline CachedFunction& operator+=(const CachedFunction& others) noexcept {//ºÏ²¢»º´æÖØÔØ+=²Ù×÷·û
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (!others.m_Cache->empty()){//ÆäËûµÄ»º´æ²»Îª¿Õ
-                    for (const auto& pair : *others.m_Cache) {//±éÀúËùÓĞµÄ»º´æ
-                        auto it = m_Cache->find(pair.first);//²éÕÒÊÇ·ñ´æÔÚ
-                        if (it == m_Cache->end())m_Cache->insert(pair);//½ö½ö¿½±´²»´æÔÚµÄ»º´æ
+
+            inline CachedFunction& operator+=(const CachedFunction& others) noexcept {//åˆå¹¶ç¼“å­˜é‡è½½+=æ“ä½œç¬¦
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (!others.m_Cache->empty()){//å…¶ä»–çš„ç¼“å­˜ä¸ä¸ºç©º
+
+                    for (const auto& pair : *others.m_Cache) {//éå†æ‰€æœ‰çš„ç¼“å­˜
+
+                        auto it = m_Cache->find(pair.first);//æŸ¥æ‰¾æ˜¯å¦å­˜åœ¨
+
+                        if (it == m_Cache->end())m_Cache->insert(pair);//ä»…ä»…æ‹·è´ä¸å­˜åœ¨çš„ç¼“å­˜
                     }
                 }
-                //É¾³ı¹ıÆÚµÄ»º´æ
-                auto nowtime = ApproximatelyGetCurrentTime();//»ñÈ¡µ±Ç°Ê±¼ä
-                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//±éÀúËùÓĞµÄ»º´æÉ¾³ı¹ıÆÚµÄ»º´æ
-                return *this;//·µ»Ø×Ô¼º
+
+                //åˆ é™¤è¿‡æœŸçš„ç¼“å­˜
+                auto nowtime = MemoroizationGetCurrentTime();//è·å–å½“å‰æ—¶é—´
+
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//éå†æ‰€æœ‰çš„ç¼“å­˜åˆ é™¤è¿‡æœŸçš„ç¼“å­˜
+
+                return *this;//è¿”å›è‡ªå·±
             }
-            inline CachedFunction& operator-(const CachedFunction& others)noexcept {//É¾³ı»º´æÖØÔØ-²Ù×÷·û
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (!m_Cache->empty()){//×Ô¼ºµÄ»º´æ²»Îª¿Õ
+
+            inline CachedFunction& operator-(const CachedFunction& others)noexcept {//åˆ é™¤ç¼“å­˜é‡è½½-æ“ä½œç¬¦
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (!m_Cache->empty()){//è‡ªå·±çš„ç¼“å­˜ä¸ä¸ºç©º
+
                     for (auto iter = m_Cache->begin(); iter != m_Cache->end();) {
+
                         if (others.m_Cache->find((*iter).first) != others.m_Cache->end()) {
+
                             iter = m_Cache->erase((*iter).first);
                         }else {
+
                             ++iter;
                         }
                     }
                 }
-                return *this;//·µ»Ø×Ô¼º
+                return *this;//è¿”å›è‡ªå·±
             }
-            inline CachedFunction& operator-=(const CachedFunction& others) noexcept {//É¾³ı»º´æÖØÔØ-=²Ù×÷·û
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                if (!m_Cache->empty()){//×Ô¼ºµÄ»º´æ²»Îª¿Õ
+
+            inline CachedFunction& operator-=(const CachedFunction& others) noexcept {//åˆ é™¤ç¼“å­˜é‡è½½-=æ“ä½œç¬¦
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                if (!m_Cache->empty()){//è‡ªå·±çš„ç¼“å­˜ä¸ä¸ºç©º
+
                     for (auto iter = m_Cache->begin(); iter != m_Cache->end();) {
+
                         if (others.m_Cache->find((*iter).first) != others.m_Cache->end()) {
+
                             iter=m_Cache->erase((*iter).first);
                         }else {
+
                             ++iter;
                         }
                     }
                 }
-                return *this;//·µ»Ø×Ô¼º
+                return *this;//è¿”å›è‡ªå·±
             }
-            inline void SetCacheTime(TimeType cacheTime,bool reserveOld=true) noexcept {//ÉèÖÃ»º´æµÄÊ±¼ä
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
+
+            inline void SetCacheTime(TimeType cacheTime,bool reserveOld=true) noexcept {//è®¾ç½®ç¼“å­˜çš„æ—¶é—´
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
                 if (!reserveOld) {
-                    cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//»º´æµÄÊ±¼äÔÚ1ºÍINFINITYCACHEÖ®¼ä
-                    for (auto& item : *m_Cache)item.second.second += cacheTime - m_cacheTime;//¸üĞÂËùÓĞµÄ»º´æµÄÊ±¼ä
+
+                    cacheTime = nonstd::Clamp(cacheTime, (TimeType)1, INFINITYCACHE);//ç¼“å­˜çš„æ—¶é—´åœ¨1å’ŒINFINITYCACHEä¹‹é—´
+
+                    for (auto& item : *m_Cache)item.second.second += cacheTime - m_cacheTime;//æ›´æ–°æ‰€æœ‰çš„ç¼“å­˜çš„æ—¶é—´
                 }
-                TimeType nowtime = ApproximatelyGetCurrentTime();//»ñÈ¡µ±Ç°Ê±¼ä
-                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//É¾³ı¹ıÆÚµÄ»º´æ
-                m_cacheTime = cacheTime;//ÉèÖÃ»º´æµÄÊ±¼ä
+
+                TimeType nowtime = MemoroizationGetCurrentTime();//è·å–å½“å‰æ—¶é—´
+
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//åˆ é™¤è¿‡æœŸçš„ç¼“å­˜
+
+                m_cacheTime = cacheTime;//è®¾ç½®ç¼“å­˜çš„æ—¶é—´
             }
+
             inline CachedFunction(void* funcAddr, CallType type, const std::function<FuncType>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 ScopeLock lock(m_mutex);
+
                 m_Cache = std::make_unique<CacheType>();
+
                 if (m_Cache) {
-                    m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//Ô¤ÏÈ·ÖÅä¿Õ¼ä
+
+                    m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//é¢„å…ˆåˆ†é…ç©ºé—´
                 }
             }
-            std::size_t& GetMaxRecursiveCountRef() {
-                return m_MaxRecursiveCount;
-            }
-            SAFE_BUFFER inline R AsyncsUpdateCache(TimeType time,const ArgsType& argsTuple)noexcept {//Òì²½¸üĞÂ»º´æ
+
+            std::size_t& GetMaxRecursiveCountRef() {return m_MaxRecursiveCount;}
+            SAFE_BUFFER inline R& AsyncsUpdateCache(CacheType& Instance,TimeType nowtime,const ArgsType& argsTuple)noexcept {//å¼‚æ­¥æ›´æ–°ç¼“å­˜
+
                 AUTOLOG
-                auto&& ret = Apply(m_Func, argsTuple);//µ÷ÓÃº¯Êı
-                ScopeLock lock(m_mutex);//¼ÓËø
-                auto nowtime = time;
-                if (LIKELY(Filter(ret, argsTuple, nowtime))) {
-                    return m_Cache->insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime+getRandom<TimeType>(0,m_cacheTime/2)) }).first->second.first;//²åÈë»òÕß¸üĞÂ»º´æ
-                }else {
-                    return ret;
-                }
+
+                const auto& ret = Apply(m_Func, argsTuple);//è°ƒç”¨å‡½æ•°
+
+                ScopeLock lock(m_mutex);//åŠ é”
+
+                return Instance.insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime + getRandom<TimeType>(0,m_cacheTime>>1)) }).first->second.first;
             }
-            SAFE_BUFFER inline R operator()(const Args&... args)noexcept {
-                TimeType m_nowtime = ApproximatelyGetCurrentTime();//»ñÈ¡µ±Ç°Ê±¼ä
-                ArgsType argsTuple = std::forward_as_tuple(std::cref(args)...);//¹¹Ôì²ÎÊıµÄtuple
-                auto m_CacheIntance= m_Cache.get();//»ñÈ¡»º´æµÄÊµÀı
-                auto iter = m_CacheIntance->find(argsTuple);
-                if (LIKELY(iter != m_CacheIntance->end())) {//Èç¹ûÕÒµ½ÁË
-                    auto&& valuepair = iter->second;//»ñÈ¡»º´æµÄÖµ
-                    if (LIKELY(valuepair.second > m_nowtime))return valuepair.first;//Èç¹û»º´æµÄÊ±¼ä´óÓÚµ±Ç°Ê±¼äÖ±½Ó·µ»Ø(ÓĞĞ§)
+
+            SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
+
+                const TimeType& nowtime = MemoroizationGetCurrentTime();//è·å–å½“å‰æ—¶é—´
+
+                const ArgsType& argsTuple = std::forward_as_tuple(std::cref(args)...);//æ„é€ å‚æ•°çš„tuple
+
+                auto& m_CacheIntance= *m_Cache.get();//è·å–ç¼“å­˜çš„å®ä¾‹
+
+                auto&& iter = m_CacheIntance.find(argsTuple);
+
+                if (LIKELY(iter != m_CacheIntance.end())) {//å¦‚æœæ‰¾åˆ°äº†
+
+                    auto&& valuepair = iter->second;//è·å–ç¼“å­˜çš„å€¼
+
+                    if (LIKELY(valuepair.second >= nowtime))return valuepair.first;//å¦‚æœç¼“å­˜çš„æ—¶é—´å¤§äºå½“å‰æ—¶é—´ç›´æ¥è¿”å›(æœ‰æ•ˆ)
                 }
-                return AsyncsUpdateCache(m_nowtime,argsTuple); // Î´ÕÒµ½Ôò¸üĞÂ;
+
+                return AsyncsUpdateCache(m_CacheIntance,nowtime,argsTuple); // æœªæ‰¾åˆ°åˆ™æ›´æ–°;
             }
+
             inline void CleanCache() const noexcept { 
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                std::thread([&]() {ScopeLock lock(m_mutex); m_Cache->clear(); }).detach();//Òì²½Çå¿Õ»º´æ ¼ÓËøÊÇÎªÁË·ÀÖ¹¶àÏß³ÌÍ¬Ê±²Ù×÷
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                std::thread([&]() {ScopeLock lock(m_mutex); m_Cache->clear(); }).detach();//å¼‚æ­¥æ¸…ç©ºç¼“å­˜ åŠ é”æ˜¯ä¸ºäº†é˜²æ­¢å¤šçº¿ç¨‹åŒæ—¶æ“ä½œ
             }
-            inline void CleanCache(const ArgsType& parameters) const noexcept {//Çå¿ÕÖ¸¶¨µÄ»º´æ Ö¸¶¨µÄ²ÎÊı±ØĞëÊÇtuple
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline void CleanCache(const ArgsType& parameters) const noexcept {//æ¸…ç©ºæŒ‡å®šçš„ç¼“å­˜ æŒ‡å®šçš„å‚æ•°å¿…é¡»æ˜¯tuple
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 ScopeLock lock(m_mutex);
+
                 auto it = m_Cache->find(parameters);
+
                 if (LIKELY(it != m_Cache->end()))  m_Cache->erase(it->first);
             }
-            inline void SetCacheResetTime(const ArgsType& parameters, TimeType cacheTime) const noexcept {//ÉèÖÃÖ¸¶¨µÄ²ÎÊıµÄ»º´æµÄÊ±¼ä
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline void SetCacheResetTime(const ArgsType& parameters, TimeType cacheTime) const noexcept {//è®¾ç½®æŒ‡å®šçš„å‚æ•°çš„ç¼“å­˜çš„æ—¶é—´
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 ScopeLock lock(m_mutex);
+
                 auto it = m_Cache->find(parameters);
-                if (LIKELY(it != m_Cache->end())) it->second = safeadd(ApproximatelyGetCurrentTime(), cacheTime);
+
+                if (LIKELY(it != m_Cache->end())) it->second = safeadd(MemoroizationGetCurrentTime(), cacheTime);
             }
-            inline bool SaveCache(const char* szFileName)noexcept {//½«»º´æ±£´æµ½ÎÄ¼ş
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                    std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//¶ş½øÖÆĞÎÊ½´ò¿ªÎÄ¼ş
+
+            inline bool SaveCache(const char* szFileName)noexcept {//å°†ç¼“å­˜ä¿å­˜åˆ°æ–‡ä»¶
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//äºŒè¿›åˆ¶å½¢å¼æ‰“å¼€æ–‡ä»¶
+
                 operator<<(file);
+
                 return true;
             }
-            inline bool LoadCache(const char* szFileName)noexcept {//´ÓÎÄ¼ş¼ÓÔØ»º´æ
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//¶ş½øÖÆĞÎÊ½´ò¿ªÎÄ¼ş
+
+            inline bool LoadCache(const char* szFileName)noexcept {//ä»æ–‡ä»¶åŠ è½½ç¼“å­˜
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//äºŒè¿›åˆ¶å½¢å¼æ‰“å¼€æ–‡ä»¶
+
                 if (!operator<<(file)) return false;
+
                 file.close();
+
                 return true;
             }
-            inline bool operator>>(std::ofstream& file) {//½«»º´æĞ´ÈëÎÄ¼ş
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (!file.is_open()) return false;//Èç¹ûÎÄ¼şÃ»ÓĞ´ò¿ª·µ»Øfalse
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
+
+            inline bool operator>>(std::ofstream& file) {//å°†ç¼“å­˜å†™å…¥æ–‡ä»¶
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (!file.is_open()) return false;//å¦‚æœæ–‡ä»¶æ²¡æœ‰æ‰“å¼€è¿”å›false
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
                 for (auto& pair : *m_Cache) {
+
                     if (std::hasher(pair.second.first) == std::hasher(R{})) continue;
+
                     if (!WriteTupleToFile(file, pair.first) || !WritePairToFile(file, pair.second)) {
+
                         continue;
                     }
                 }
+
                 file.flush();
+
                 return true;
             }
-            inline bool operator<<(std::ifstream& file) noexcept {//´ÓÎÄ¼ş¶ÁÈ¡»º´æ
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if (!file.is_open()) return false;//Èç¹ûÎÄ¼şÃ»ÓĞ´ò¿ª·µ»Øfalse
-				if (file.tellg() == 0) return false;//Èç¹ûÎÄ¼şµÄÎ»ÖÃÊÇ0·µ»Øfalse
-                ScopeLock lock(m_mutex);//¼ÓËø±£Ö¤Ïß³Ì°²È«
-                m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//Ô¤ÏÈ·ÖÅä¿Õ¼ä
+
+            inline bool operator<<(std::ifstream& file) noexcept {//ä»æ–‡ä»¶è¯»å–ç¼“å­˜
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if (!file.is_open()) return false;//å¦‚æœæ–‡ä»¶æ²¡æœ‰æ‰“å¼€è¿”å›false
+
+				if (file.tellg() == 0) return false;//å¦‚æœæ–‡ä»¶çš„ä½ç½®æ˜¯0è¿”å›false
+
+                ScopeLock lock(m_mutex);//åŠ é”ä¿è¯çº¿ç¨‹å®‰å…¨
+
+                m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//é¢„å…ˆåˆ†é…ç©ºé—´
+
                 while (file) {
-                    ArgsType key{};//ÁÙÊ±¹¹ÔìÒ»¸ötuple
-                    ValueType value{};//ÁÙÊ±¹¹ÔìÒ»¸öpair
-                    if (!ReadTupleFromFile(file, key) || !ReadPairFromFile(file, value)) continue;//¶ÁÈ¡tupleºÍpair
-                    if (value.second > ApproximatelyGetCurrentTime())m_Cache->insert(std::make_pair(key, value));//½öµ±»º´æµÄÊ±¼ä´óÓÚµ±Ç°Ê±¼äµÄÊ±ºò²åÈë
+                    ArgsType key{};//ä¸´æ—¶æ„é€ ä¸€ä¸ªtuple
+
+                    ValueType value{};//ä¸´æ—¶æ„é€ ä¸€ä¸ªpair
+
+                    if (!ReadTupleFromFile(file, key) || !ReadPairFromFile(file, value)) continue;//è¯»å–tupleå’Œpair
+
+                    if (value.second > MemoroizationGetCurrentTime())m_Cache->insert(std::make_pair(key, value));//ä»…å½“ç¼“å­˜çš„æ—¶é—´å¤§äºå½“å‰æ—¶é—´çš„æ—¶å€™æ’å…¥
                 }
                 for (auto it = m_Cache->begin(); it != m_Cache->end(); ) {
-                    if (it->second.second < ApproximatelyGetCurrentTime()) {
+
+                    if (it->second.second < MemoroizationGetCurrentTime()) {
+
                         it = m_Cache->erase(it); // erase returns the next valid iterator
                     }else {
+
                         ++it; // only increment if not erased
                     }
                 }
+
                 return true;
             }
-            inline void operator>>(const CachedFunction& others) noexcept { //½«×Ô¼ºµÄ»º´æ²åÈëµ½othersµÄ»º´æÖĞ
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                for (const auto& pair : *m_Cache)others.m_Cache->insert(pair); //²åÈëµ½othersµÄ»º´æÖĞ
+
+            inline void operator>>(const CachedFunction& others) noexcept { //å°†è‡ªå·±çš„ç¼“å­˜æ’å…¥åˆ°othersçš„ç¼“å­˜ä¸­
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                for (const auto& pair : *m_Cache)others.m_Cache->insert(pair); //æ’å…¥åˆ°othersçš„ç¼“å­˜ä¸­
+
             }
-            inline void operator<<(const CachedFunction& others) noexcept {//½«othersµÄ»º´æ²åÈëµ½×Ô¼ºµÄ»º´æÖĞ
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline void operator<<(const CachedFunction& others) noexcept {//å°†othersçš„ç¼“å­˜æ’å…¥åˆ°è‡ªå·±çš„ç¼“å­˜ä¸­
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 ScopeLock lock(m_mutex);
-                for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//²åÈëµ½×Ô¼ºµÄ»º´æÖĞ
+
+                for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//æ’å…¥åˆ°è‡ªå·±çš„ç¼“å­˜ä¸­
+
             }
-            friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction& func)noexcept {//ÖØÔØÊä³öÁ÷
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                return  os<<func.m_Cache->size() << std::endl;//Êä³ö»º´æµÄ´óĞ¡£¨¸öÊı£©
+
+            friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction& func)noexcept {//é‡è½½è¾“å‡ºæµ
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return  os<<func.m_Cache->size() << std::endl;//è¾“å‡ºç¼“å­˜çš„å¤§å°ï¼ˆä¸ªæ•°ï¼‰
+
             }
-            inline std::function<FuncType>* operator->()noexcept { AUTOLOG return &m_Func; }//·µ»Øº¯Êı¶ÔÏóµÄÖ¸Õë
-            inline bool empty()const noexcept { AUTOLOG return m_Cache->empty(); }//ÅĞ¶Ï»º´æÊÇ·ñÎª¿Õ
-            inline std::size_t size()const noexcept { AUTOLOG return m_Cache->size(); }//·µ»Ø»º´æµÄ´óĞ¡
-            SAFE_BUFFER inline iterator GetRef(const Args&...args)const noexcept {//ÖØÔØÏÂ±ê²Ù×÷·û
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline std::function<FuncType>* operator->()noexcept {
+
+                AUTOLOG
+
+                return &m_Func;
+
+            }//è¿”å›å‡½æ•°å¯¹è±¡çš„æŒ‡é’ˆ
+
+            inline bool empty()const noexcept {
+
+                AUTOLOG 
+                    
+                return m_Cache->empty();
+
+            }//åˆ¤æ–­ç¼“å­˜æ˜¯å¦ä¸ºç©º
+
+            inline std::size_t size()const noexcept { 
+
+                AUTOLOG 
+
+                return m_Cache->size();
+
+            }//è¿”å›ç¼“å­˜çš„å¤§å°
+
+            SAFE_BUFFER inline iterator GetRef(const Args&...args)const noexcept {//é‡è½½ä¸‹æ ‡æ“ä½œç¬¦
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 auto&& key = std::forward_as_tuple(std::cref(args)...);
-                return  m_Cache->find(key);//·µ»ØÄÚÈİµ«ÊÇ²»¼ì²éÊÇ·ñ¹ıÆÚ
+
+                return  m_Cache->find(key);//è¿”å›å†…å®¹ä½†æ˜¯ä¸æ£€æŸ¥æ˜¯å¦è¿‡æœŸ
+
             }
         };
-        template<typename R> struct CachedFunction<R> : public CachedFunctionBase {//Ã»ÓĞ²ÎÊıµÄ»º´æº¯ÊıÊÇÒ»¸ö¼Ì³Ğ×ÔCachedFunctionBaseµÄÀà
+        template<typename R> struct CachedFunction<R> : public CachedFunctionBase {//æ²¡æœ‰å‚æ•°çš„ç¼“å­˜å‡½æ•°æ˜¯ä¸€ä¸ªç»§æ‰¿è‡ªCachedFunctionBaseçš„ç±»
+
             mutable std::function<R()> m_Func;
+
             mutable CacheitemType<R> m_Cache;
-            inline CachedFunction(const CacheitemType<R>& cache) :m_Func(nullptr), m_Cache(cache) { AUTOLOG }
-            inline CachedFunction(void* funcAddr, CallType type, const std::function<R()>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)), m_Cache(std::make_pair(R{}, 0)) { AUTOLOG }
-            inline R& setcacheresettime(const R& value, const  TimeType  cacheTime = ApproximatelyGetCurrentTime())const noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline CachedFunction(const CacheitemType<R>& cache) :m_Func(nullptr), m_Cache(cache) {
+
+                AUTOLOG
+
+            }
+
+            inline CachedFunction(void* funcAddr, CallType type, const std::function<R()>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)), m_Cache(std::make_pair(R{}, 0)) {
+
+                AUTOLOG 
+
+            }
+
+            inline R& setcacheresettime(const R& value, const  TimeType  cacheTime = MemoroizationGetCurrentTime())const noexcept {
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 ScopeLock lock(m_mutex);
+
                 m_Cache = std::make_pair(value, cacheTime);
+
                 return m_Cache.first;
             }
-            inline std::string GetObjectName() const noexcept {//»ñÈ¡¶ÔÏóµÄÃû×Ö ÀàĞÍµÄÃû×Ö
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+            inline std::string GetObjectName() const noexcept {//è·å–å¯¹è±¡çš„åå­— ç±»å‹çš„åå­—
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 return typeid(CachedFunction).name();
             }
-            inline operator bool()noexcept { AUTOLOG  return (bool)m_Func; }//¼ì²éº¯ÊıÊÇ·ñÓĞĞ§
+
+            inline operator bool()noexcept { 
+
+                AUTOLOG 
+
+                return (bool)m_Func;
+            }//æ£€æŸ¥å‡½æ•°æ˜¯å¦æœ‰æ•ˆ
+
             inline operator std::function<R()>()noexcept { AUTOLOG  return m_Func; }
              inline CachedFunction(CachedFunction&& other) noexcept : CachedFunctionBase(other.m_funcAddr, other.m_callType, other.m_cacheTime), m_Func(std::move(other.m_Func)), m_Cache(std::move(other.m_Cache)) {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 m_funcAddr = std::move(other.m_funcAddr);
             }
+
             inline CachedFunction& operator=(CachedFunction&& others) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 m_Func = std::move(others.m_Func);
+
                 m_Cache = std::move(others.m_Cache);
+
                 m_funcAddr = others.m_funcAddr;
+
                 others.m_funcAddr = nullptr;
+
                 return *this;
             }
-            inline CachedFunction(const CachedFunction& others) :CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Cache(others.m_Cache), m_Func(others.m_Func) { AUTOLOG }
+
+            inline CachedFunction(const CachedFunction& others) :CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Cache(others.m_Cache), m_Func(others.m_Func) { 
+
+                AUTOLOG
+            }
+
             inline CachedFunction& operator=(const CachedFunction& others)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 m_Cache = others.m_Cache;
+
                 m_Func = others.m_Func;
+
                 m_funcAddr = others.m_funcAddr;
+
                 return *this;
             }
+
             inline bool LoadCache(const char* szFileName)noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 std::ifstream file(GetUniqueName(m_Func,szFileName), std::ios_base::binary);
+
                 if (!file.is_open() || !operator<<(file)) return false;
+
                 file.close();
+
                 return true;
             }
+
             inline bool SaveCache(const char* szFileName) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 std::ofstream file(GetUniqueName(m_Func,szFileName), std::ios::binary |std::ios::out|std::ios::trunc);
+
                 if (!file.is_open() || !operator>>(file)) return false;
+
                 file.close();
+
                 return true;
             }
+
             inline bool operator >> (const std::ofstream& file) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 if (!file.is_open()) return false;
+
                 if (!WritePairToFile(file, m_Cache))return false;
+
                 return true;
             }
+
             inline bool operator << (const std::ifstream& file) noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
                 if (!file.is_open()) return false;
+
                 ScopeLock lock(m_mutex);
+
                 if (!ReadPairFromFile(file, m_Cache))return false;
-                auto nowtime = ApproximatelyGetCurrentTime();
+
+                auto nowtime = MemoroizationGetCurrentTime();
+
                 if (m_Cache.second > nowtime) m_Cache = std::make_pair(R{}, 0);
+
                 return true;
             }
-            inline void operator >> (const CachedFunction& others)noexcept { AUTOLOG others.m_Cache = m_Cache; }
-            inline void operator << (const CachedFunction& others) noexcept { AUTOLOG m_Cache = others.m_Cache; }
-            friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction&)noexcept { AUTOLOG return os << 1; }
+
+            inline void operator >> (const CachedFunction& others)noexcept { 
+
+                AUTOLOG 
+
+                others.m_Cache = m_Cache; 
+            }
+
+            inline void operator << (const CachedFunction& others) noexcept { 
+
+                AUTOLOG
+
+                m_Cache = others.m_Cache;
+            }
+            friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction&)noexcept {
+
+                AUTOLOG
+
+                return os << 1; 
+            }
             SAFE_BUFFER inline R& operator()() const noexcept {
-                AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                if ((TimeType)m_Cache.second > (TimeType)ApproximatelyGetCurrentTime()) return m_Cache.first;
-                return setcacheresettime(m_Func(),(safeadd(ApproximatelyGetCurrentTime(), m_cacheTime)));
+
+                AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                if ((TimeType)m_Cache.second > (TimeType)MemoroizationGetCurrentTime()) return m_Cache.first;
+
+                return setcacheresettime(m_Func(),(safeadd<TimeType>(MemoroizationGetCurrentTime(), m_cacheTime)));
             }
             inline void CleanCache()const noexcept {
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                ScopeLock lock(m_mutex);//¼ÓËø
-                m_Cache.second = ApproximatelyGetCurrentTime() - 1, m_Cache.first = R(); 
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                ScopeLock lock(m_mutex);//åŠ é”
+
+                m_Cache.second = MemoroizationGetCurrentTime() - 1, m_Cache.first = R(); 
             }
-             inline std::function<R()>* operator->()noexcept { AUTOLOG  return &m_Func; }
+
+            inline std::function<R()>* operator->()noexcept { AUTOLOG  return &m_Func; }
             inline bool empty()const noexcept { 
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                return std::hash(m_Cache.first) == std::hash(R{}); //Èç¹û»º´æµÄÖµÊÇÄ¬ÈÏÖµÔòÎª¿Õ 
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return std::hash(m_Cache.first) == std::hash(R{}); //å¦‚æœç¼“å­˜çš„å€¼æ˜¯é»˜è®¤å€¼åˆ™ä¸ºç©º 
             }
+
             inline std::size_t size()const noexcept { 
-                AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-                return 1; //º¯ÊıÖ»ÓĞÒ»¸ö»º´æ
+
+                AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+                return 1; //å‡½æ•°åªæœ‰ä¸€ä¸ªç¼“å­˜
             }
+
             inline CacheitemType<R>& GetRef() {
+
                 return m_Cache;
+
             }
+
         };
-        //İÍÈ¡º¯ÊıµÄ·µ»ØÖµºÍ²ÎÊı
-        template <typename F>struct function_traits : function_traits<decltype(&F::operator())> {};//µ±F¿ÉÄÜÊÇÒ»¸ölambda±í´ïÊ½µÄÊ±
-        template <typename R, typename... Args>struct function_traits<R(*)(Args...)> {//º¯ÊıÖ¸ÕëµÄİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
+        //èƒå–å‡½æ•°çš„è¿”å›å€¼å’Œå‚æ•°
+        template <typename F>
+        struct function_traits : function_traits<decltype(&F::operator())> {};//å½“Få¯èƒ½æ˜¯ä¸€ä¸ªlambdaè¡¨è¾¾å¼çš„æ—¶
+
+        template <typename R, typename... Args>
+        struct function_traits<R(*)(Args...)> {//å‡½æ•°æŒ‡é’ˆçš„èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<Args...>;
         };
-        template <typename R>struct function_traits<R(*)()> {//º¯ÊıÖ¸ÕëµÄİÍÈ¡£¬Ã»ÓĞ²ÎÊı
+
+        template <typename R>
+        struct function_traits<R(*)()> {//å‡½æ•°æŒ‡é’ˆçš„èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<>;
         };
-        template <typename R, typename... Args>struct function_traits<std::function<R(Args...)>> {//std::functionµÄİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
+
+        template <typename R, typename... Args>
+        struct function_traits<std::function<R(Args...)>> {//std::functionçš„èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<Args...>;
         };
-        template <typename R>struct function_traits<std::function<R()>> {//std::functionµÄİÍÈ¡£¬Ã»ÓĞ²ÎÊı
+
+        template <typename R>
+        struct function_traits<std::function<R()>> {//std::functionçš„èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<>;
         };
+
         template <typename ClassType, typename R, typename... Args>
-        struct function_traits<R(ClassType::*)(Args...) const> {//³ÉÔ±º¯ÊıµÄİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
+        struct function_traits<R(ClassType::*)(Args...) const> {//æˆå‘˜å‡½æ•°çš„èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<Args...>;
         };
+
         template <typename ClassType, typename R>
-        struct function_traits<R(ClassType::*)() const> {//³ÉÔ±º¯ÊıµÄİÍÈ¡£¬Ã»ÓĞ²ÎÊı
+        struct function_traits<R(ClassType::*)() const> {//æˆå‘˜å‡½æ•°çš„èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
             using return_type = R;
+
             using args_tuple_type = std::tuple<>;
         };
+
         template<typename ClassType, typename R, typename... Args>
-        struct function_traits<R(ClassType::*)(Args...)> : function_traits<R(Args...)> {};//³ÉÔ±º¯ÊıµÄİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
+        struct function_traits<R(ClassType::*)(Args...)> : function_traits<R(Args...)> {};//æˆå‘˜å‡½æ•°çš„èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
 #ifdef _WIN64
-        template <typename F>struct stdcallfunction_traits : stdcallfunction_traits<decltype(&F::operator())> {};//stdcallµÄlambda±í´ïÊ½İÍÈ¡
-        template <typename R, typename... Args>struct stdcallfunction_traits<R(STDCALL*)(Args...)> :public function_traits<R(STDCALL*)(Args...)> {};//stdcallµÄº¯ÊıÖ¸ÕëİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename R>struct stdcallfunction_traits<R(STDCALL*)()> :public function_traits<R(STDCALL*)()> {};//stdcallµÄº¯ÊıÖ¸ÕëİÍÈ¡£¬Ã»ÓĞ²ÎÊı
-        template <typename ClassType, typename R, typename... Args>struct stdcallfunction_traits<R(STDCALL ClassType::*)(Args...)> :public function_traits<R(STDCALL ClassType::*)(Args...)> {};//stdcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename ClassType, typename R>struct stdcallfunction_traits<R(STDCALL ClassType::*)()> :public function_traits<R(STDCALL ClassType::*)()> {};//stdcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬Ã»ÓĞ²ÎÊı
-        template <typename ClassType, typename R, typename... Args>struct stdcallfunction_traits<R(STDCALL ClassType::*)(Args...) const> :public function_traits<R(STDCALL ClassType::*)(Args...) const > {};//stdcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename ClassType, typename R>struct stdcallfunction_traits<R(STDCALL ClassType::*)() const> :public function_traits<R(STDCALL ClassType::*)() const > {};//stdcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬Ã»ÓĞ²ÎÊı
-        template <typename F>struct fastcallfunction_traits : fastcallfunction_traits<decltype(&F::operator())> {};//fastcallµÄlambda±í´ïÊ½İÍÈ¡
-        template <typename R, typename... Args>struct fastcallfunction_traits<R(FASTCALL*)(Args...)> :public function_traits<R(FASTCALL*)(Args...)> {};//fastcallµÄº¯ÊıÖ¸ÕëİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename R>struct fastcallfunction_traits<R(FASTCALL*)()> :public function_traits<R(FASTCALL*)()> {};//fastcallµÄº¯ÊıÖ¸ÕëİÍÈ¡£¬Ã»ÓĞ²ÎÊı
-        template <typename ClassType, typename R, typename... Args>struct fastcallfunction_traits<R(FASTCALL ClassType::*)(Args...)> :public function_traits<R(FASTCALL ClassType::*)(Args...)> {};//fastcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename ClassType, typename R>struct fastcallfunction_traits<R(FASTCALL ClassType::*)()> :public function_traits<R(FASTCALL ClassType::*)()> {};//fastcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬Ã»ÓĞ²ÎÊı
-        template <typename ClassType, typename R, typename... Args>struct fastcallfunction_traits<R(FASTCALL ClassType::*)(Args...) const> :public function_traits<R(FASTCALL ClassType::*)(Args...) const> {};//fastcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬¾ßÓĞ¿É±ä²ÎÊı
-        template <typename ClassType, typename R>struct fastcallfunction_traits<R(FASTCALL ClassType::*)() const> :public function_traits <R(FASTCALL ClassType::*)() const> {};//fastcallµÄ³ÉÔ±º¯ÊıİÍÈ¡£¬Ã»ÓĞ²ÎÊı
+        template <typename F>
+        struct stdcallfunction_traits : stdcallfunction_traits<decltype(&F::operator())> {};//stdcallçš„lambdaè¡¨è¾¾å¼èƒå–
+
+        template <typename R, typename... Args>
+        struct stdcallfunction_traits<R(STDCALL*)(Args...)> :public function_traits<R(STDCALL*)(Args...)> {};//stdcallçš„å‡½æ•°æŒ‡é’ˆèƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename R>
+        struct stdcallfunction_traits<R(STDCALL*)()> :public function_traits<R(STDCALL*)()> {};//stdcallçš„å‡½æ•°æŒ‡é’ˆèƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
+        template <typename ClassType, typename R, typename... Args>
+        struct stdcallfunction_traits<R(STDCALL ClassType::*)(Args...)> :public function_traits<R(STDCALL ClassType::*)(Args...)> {};//stdcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename ClassType, typename R>
+        struct stdcallfunction_traits<R(STDCALL ClassType::*)()> :public function_traits<R(STDCALL ClassType::*)()> {};//stdcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
+        template <typename ClassType, typename R, typename... Args>
+        struct stdcallfunction_traits<R(STDCALL ClassType::*)(Args...) const> :public function_traits<R(STDCALL ClassType::*)(Args...) const > {};//stdcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename ClassType, typename R>
+        struct stdcallfunction_traits<R(STDCALL ClassType::*)() const> :public function_traits<R(STDCALL ClassType::*)() const > {};//stdcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
+        template <typename F>
+        struct fastcallfunction_traits : fastcallfunction_traits<decltype(&F::operator())> {};//fastcallçš„lambdaè¡¨è¾¾å¼èƒå–
+
+        template <typename R, typename... Args>
+        struct fastcallfunction_traits<R(FASTCALL*)(Args...)> :public function_traits<R(FASTCALL*)(Args...)> {};//fastcallçš„å‡½æ•°æŒ‡é’ˆèƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename R>
+        struct fastcallfunction_traits<R(FASTCALL*)()> :public function_traits<R(FASTCALL*)()> {};//fastcallçš„å‡½æ•°æŒ‡é’ˆèƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
+        template <typename ClassType, typename R, typename... Args>
+        struct fastcallfunction_traits<R(FASTCALL ClassType::*)(Args...)> :public function_traits<R(FASTCALL ClassType::*)(Args...)> {};//fastcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename ClassType, typename R>
+        struct fastcallfunction_traits<R(FASTCALL ClassType::*)()> :public function_traits<R(FASTCALL ClassType::*)()> {};//fastcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
+        template <typename ClassType, typename R, typename... Args>
+        struct fastcallfunction_traits<R(FASTCALL ClassType::*)(Args...) const> :public function_traits<R(FASTCALL ClassType::*)(Args...) const> {};//fastcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œå…·æœ‰å¯å˜å‚æ•°
+
+        template <typename ClassType, typename R>
+        struct fastcallfunction_traits<R(FASTCALL ClassType::*)() const> :public function_traits <R(FASTCALL ClassType::*)() const> {};//fastcallçš„æˆå‘˜å‡½æ•°èƒå–ï¼Œæ²¡æœ‰å‚æ•°
+
 #endif // _WIN64
-        template <typename R, typename... Args> inline static auto& GetCachedFunction(void* funcAddr, CallType type, const std::function<R(Args...)>& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
-            AUTOLOGPERFIX(typeid(std::function<R(Args...)>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return  ObjectPool<CachedFunction<R, Args...>>::Construct()(cacheTime, funcAddr, type, func, cacheTime);//¸ù¾İ²ÎÊıºÍÀàĞÍ¹¹ÔìÒ»¸ö»º´æº¯Êı
+        template <typename R, typename... Args>
+        inline static auto& GetCachedFunction(void* funcAddr, CallType type,std::function<R(Args...)>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
+
+            AUTOLOGPERFIX(typeid(std::function<R(Args...)>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return  ObjectPool<CachedFunction<R, Args...>>::Construct()(cacheTime, funcAddr, type, std::forward<std::function<R(Args...)>>(func), cacheTime);//æ ¹æ®å‚æ•°å’Œç±»å‹æ„é€ ä¸€ä¸ªç¼“å­˜å‡½æ•°
+
         }
-        template <typename R> inline static auto GetCachedFunction(void* funcAddr, CallType type, const std::function<R()>& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
-            AUTOLOGPERFIX(typeid(std::function<R()>).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return  CachedFunction<R>(funcAddr, type, func, cacheTime);//¸ù¾İ²ÎÊıºÍÀàĞÍ¹¹ÔìÒ»¸ö»º´æº¯Êı
+
+        template <typename R>
+        inline static auto GetCachedFunction(void* funcAddr, CallType type,std::function<R()>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
+
+            AUTOLOGPERFIX(typeid(std::function<R()>).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return  CachedFunction<R>(funcAddr, type,std::forward<std::function<R()>>(func), cacheTime);//æ ¹æ®å‚æ•°å’Œç±»å‹æ„é€ ä¸€ä¸ªç¼“å­˜å‡½æ•°
+
         }
-        template<typename F, std::size_t... Is, typename DecayF = std::decay_t<F>> inline static auto MakeCachedImpl(F&& f, CallType type, TimeType validtime, const std::index_sequence<Is...>&) noexcept {
-            AUTOLOGPERFIX(typeid(F).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
+
+        template<typename F, std::size_t... Is, typename DecayF = std::decay_t<F>>
+        inline static auto MakeCachedImpl(F&& f, CallType type, TimeType validtime, const std::index_sequence<Is...>&) noexcept {
+
+            AUTOLOGPERFIX(typeid(F).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
             using Functype = typename function_traits<DecayF>::return_type(typename std::tuple_element<Is, typename function_traits<DecayF>::args_tuple_type>::type...);
-            return GetCachedFunction((void*)&f, type, std::function<Functype>(std::forward<F>(f)), validtime);//¸ù¾İ²ÎÊıºÍÀàĞÍ¹¹ÔìÒ»¸ö»º´æº¯Êı
+
+            return GetCachedFunction((void*)&f, type, std::function<Functype>(std::forward<F>(f)), validtime);//æ ¹æ®å‚æ•°å’Œç±»å‹æ„é€ ä¸€ä¸ªç¼“å­˜å‡½æ•°
+
         }
-        template<typename T, typename R, typename... Args>SAFE_BUFFER inline auto ThisCall(T& obj, R(T::* func)(Args...))noexcept { 
-            AUTOLOGPERFIX(typeid(T).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-            return [&obj, func](const Args&... args) -> R {return (obj.*func)(args...); }; //°ü×°TÀàĞÍµÄ³ÉÔ±º¯Êı³ÉÎªÒ»¸ö¿Éµ÷ÓÃµÄº¯Êı¶ÔÏó
+
+        template<typename T, typename R, typename... Args>
+        SAFE_BUFFER inline auto ThisCall(T& obj, R(T::* func)(Args...))noexcept { 
+
+            AUTOLOGPERFIX(typeid(T).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+            return [&obj, func](const Args&... args) -> R {return (obj.*func)(args...); }; //åŒ…è£…Tç±»å‹çš„æˆå‘˜å‡½æ•°æˆä¸ºä¸€ä¸ªå¯è°ƒç”¨çš„å‡½æ•°å¯¹è±¡
+
         }
-        template<typename T, typename F>inline auto ConvertMemberFunction(const T& obj, F&& func)noexcept { AUTOLOG return ThisCall(const_cast<T&>(obj), std::forward<F>(func)); }//×ª»»³ÉÔ±º¯Êı³ÉÎªÒ»¸ö¿Éµ÷ÓÃµÄº¯Êı¶ÔÏó
+
+        template<typename T, typename F>
+        inline auto ConvertMemberFunction(const T& obj, F&& func)noexcept { 
+
+            AUTOLOG 
+
+            return ThisCall(const_cast<T&>(obj), std::forward<F>(func)); 
+
+        }//è½¬æ¢æˆå‘˜å‡½æ•°æˆä¸ºä¸€ä¸ªå¯è°ƒç”¨çš„å‡½æ•°å¯¹è±¡
 #ifdef _MSC_VER
+
 #pragma  warning(  pop  )
+
 #endif
     }
-    template<typename T> using ArgsType_v = std::make_index_sequence<std::tuple_size<T>::value>;//Í¨¹ıtupleµÄ´óĞ¡Éú³ÉÒ»¸öindex_sequence
+    template<typename T> 
+    using ArgsType_v = std::make_index_sequence<std::tuple_size<T>::value>;//é€šè¿‡tupleçš„å¤§å°ç”Ÿæˆä¸€ä¸ªindex_sequence
 }
-//»º´æº¯ÊıµÄ´´½¨µÄ¼ÓÇ¿°æ
+
+//ç¼“å­˜å‡½æ•°çš„åˆ›å»ºçš„åŠ å¼ºç‰ˆ
 template<typename F>inline  auto MakeCacheEx(F&& f, const  memoizationsearch::nonstd::CallType& calltype= memoizationsearch::nonstd::CallType::cdeclcall, TimeType _validtime=MEMOIZATIONSEARCH)noexcept {
     AUTOLOGPERFIX(typeid(F).name())
+
     using namespace memoizationsearch;
+
 	using namespace memoizationsearch::nonstd;
-    auto validtime =Clamp(_validtime, (TimeType)1, INFINITYCACHE);//ÓĞĞ§Ê±¼ä Ïà¼Ó²»»áÒç³ö ×î´óÖ»»á·µ»ØINFINITYCACHE
+
+    auto validtime =Clamp(_validtime, (TimeType)1, INFINITYCACHE);//æœ‰æ•ˆæ—¶é—´ ç›¸åŠ ä¸ä¼šæº¢å‡º æœ€å¤§åªä¼šè¿”å›INFINITYCACHE
+
 #ifdef _WIN64
-    switch (calltype) {//¸ù¾İ²»Í¬µÄµ÷ÓÃ·½Ê½´´½¨²»Í¬µÄ»º´æº¯Êı
-    case  CallType::cdeclcall:break;
-        //¶ÔÓÚstdcallµÄÌØÊâ´¦Àí
-    case  CallType::stdcall:  return  MakeCachedImpl(f, calltype, validtime, ArgsType_v<typename  stdcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
-        //¶ÔÓÚfastcallµÄÌØÊâ´¦Àí
-    case  CallType::fastcall: return  MakeCachedImpl(f, calltype, validtime,ArgsType_v<typename  fastcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
+
+    switch (calltype) {//æ ¹æ®ä¸åŒçš„è°ƒç”¨æ–¹å¼åˆ›å»ºä¸åŒçš„ç¼“å­˜å‡½æ•°
+
+    case  CallType::cdeclcall:
+
+        break;
+        //å¯¹äºstdcallçš„ç‰¹æ®Šå¤„ç†
+
+    case  CallType::stdcall: 
+
+        return  MakeCachedImpl(std::forward<F>(f), calltype, validtime, ArgsType_v<typename  stdcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
+
+        //å¯¹äºfastcallçš„ç‰¹æ®Šå¤„ç†
+    case  CallType::fastcall: 
+
+        return  MakeCachedImpl(std::forward<F>(f), calltype, validtime,ArgsType_v<typename  fastcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
+
     }
+
 #endif // _WIN64
-    return  MakeCachedImpl(f, calltype, validtime,ArgsType_v<typename function_traits<std::decay_t<F>>::args_tuple_type>{});//¸ù¾İ²ÎÊıºÍÀàĞÍ¹¹ÔìÒ»¸ö»º´æº¯Êı
+    return  MakeCachedImpl(std::forward<F>(f), calltype, validtime,ArgsType_v<typename function_traits<std::decay_t<F>>::args_tuple_type>{});//æ ¹æ®å‚æ•°å’Œç±»å‹æ„é€ ä¸€ä¸ªç¼“å­˜å‡½æ•°
+
 }
-template<typename R, typename...Args>  inline auto& MakeCacheItem(const R& ret, TimeType validtime, const Args&...args) noexcept { 
-    AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-    return std::make_pair(std::make_tuple(args...), std::make_pair(ret, validtime)); 
+
+template<typename R, typename...Args>  
+inline auto& MakeCacheItem(const R& ret, TimeType validtime, const Args&...args) noexcept { 
+
+    AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+    return std::make_pair(std::make_tuple(std::cref(args)...), std::make_pair(std::cref(ret), validtime)); 
+
 }
-template<typename F> inline auto MakeCache(F&& f, const TimeType validtime = MEMOIZATIONSEARCH) noexcept {//´´½¨»º´æ µÚ¶ş¸ö²ÎÊıÊÇ»º´æµÄÓĞĞ§Ê±¼ä Ä¬ÈÏÊÇMEMOIZATIONSEARCH
-    AUTOLOGPERFIX(typeid(F).name())//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-    return MakeCacheEx(f, memoizationsearch::nonstd::CallType::cdeclcall, validtime);//ÓĞÄ¬ÈÏ²ÎÊıµÄº¯ÊıĞ´Çå³şÊÇÎªÁË°Ñvalidtime´«µİ¸øËû
+
+template<typename F>
+inline auto MakeCache(F&& f, const TimeType validtime = MEMOIZATIONSEARCH) noexcept {//åˆ›å»ºç¼“å­˜ ç¬¬äºŒä¸ªå‚æ•°æ˜¯ç¼“å­˜çš„æœ‰æ•ˆæ—¶é—´ é»˜è®¤æ˜¯MEMOIZATIONSEARCH
+    AUTOLOGPERFIX(typeid(F).name())//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+    return MakeCacheEx(std::forward<F>(f), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//æœ‰é»˜è®¤å‚æ•°çš„å‡½æ•°å†™æ¸…æ¥šæ˜¯ä¸ºäº†æŠŠvalidtimeä¼ é€’ç»™ä»–
+
 }
-template<typename T, class F> inline auto CacheMemberFunction(T&& obj, F&& func,const TimeType validtime = MEMOIZATIONSEARCH) noexcept { //»º´æ³ÉÔ±º¯Êı
-    AUTOLOG//×Ô¶¯¼ÇÂ¼ÈÕÖ¾
-    return MakeCacheEx(memoizationsearch::nonstd::ConvertMemberFunction(std::forward<T>(obj), std::forward<F>(func)), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//ÏÈ×ª»»ÎªÒ»°ãµÄº¯ÊıÔÚµ÷ÓÃ,ÓĞÄ¬ÈÏ²ÎÊıµÄº¯ÊıĞ´Çå³şÊÇÎªÁË°Ñvalidtime´«µİ¸øËû
+
+template<typename T, class F> 
+inline auto CacheMemberFunction(T&& obj, F&& func,const TimeType validtime = MEMOIZATIONSEARCH) noexcept { //ç¼“å­˜æˆå‘˜å‡½æ•°
+
+    AUTOLOG//è‡ªåŠ¨è®°å½•æ—¥å¿—
+
+    return MakeCacheEx(memoizationsearch::nonstd::ConvertMemberFunction(std::forward<T>(obj), std::forward<F>(func)), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//å…ˆè½¬æ¢ä¸ºä¸€èˆ¬çš„å‡½æ•°åœ¨è°ƒç”¨,æœ‰é»˜è®¤å‚æ•°çš„å‡½æ•°å†™æ¸…æ¥šæ˜¯ä¸ºäº†æŠŠvalidtimeä¼ é€’ç»™ä»–
+
 }
+
 #endif
 
