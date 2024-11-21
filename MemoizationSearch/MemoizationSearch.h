@@ -76,7 +76,9 @@ static T getRandom(T min, T max) {
 
         return dis(gen);
 
-    }else {
+    }
+    else {
+
         std::uniform_real_distribution<T> dis(min, max);
 
         return dis(gen);
@@ -104,7 +106,7 @@ namespace xorstr_impl {
     constexpr auto time = __TIME__;
 
     constexpr auto seed = static_cast<int>(time[7]) +
-        static_cast<int>(time[6]) * 10 +static_cast<int>(time[4]) * 60 +static_cast<int>(time[3]) * 600 +static_cast<int>(time[1]) * 3600 +static_cast<int>(time[0]) * 36000;
+        static_cast<int>(time[6]) * 10 + static_cast<int>(time[4]) * 60 + static_cast<int>(time[3]) * 600 + static_cast<int>(time[1]) * 3600 + static_cast<int>(time[0]) * 36000;
 
     template <int N>
     class random_generator {
@@ -169,7 +171,10 @@ namespace xorstr_impl {
 
         template <size_t... Is>
         constexpr XORSTR_INLINE string(const char* str, std::index_sequence<Is...>) :
-            key_(random_char<K>::value), encrypted_{ { enc(str[Is])... } } {}
+            key_(random_char<K>::value), encrypted_{ { enc(str[Is])... } }
+        {
+
+        }
 
         XORSTR_INLINE decltype(auto) decrypt() {
 
@@ -200,11 +205,11 @@ float& GetGlobalDefaultCacheTimeRef() {//获取全局的缓存时间的引用
 }
 #ifdef _WIN64
 
- auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//定义缓存的最大时间
+auto INFINITYCACHE = static_cast<TimeType>(0x0000'FFFF'FFFF'FFFF'FFFFULL);//定义缓存的最大时间
 
 #else
 
- auto INFINITYCACHE = static_cast<TimeType>(0xFFFF'FFFF);//定义缓存的最大时间在32位下
+auto INFINITYCACHE = static_cast<TimeType>(0xFFFF'FFFF);//定义缓存的最大时间在32位下
 
 #endif // _WIN64
 
@@ -256,45 +261,45 @@ float& GetGlobalDefaultCacheTimeRef() {//获取全局的缓存时间的引用
 #endif
 
 #ifdef _DEBUG
- struct AutoLog {
+struct AUTOLoG {
 
-     using Clock = std::chrono::high_resolution_clock;
+    using Clock = std::chrono::high_resolution_clock;
 
-     std::recursive_timed_mutex logmtx;
+    std::recursive_timed_mutex logmtx;
 
-     Clock::time_point timepoint;
+    Clock::time_point timepoint;
 
-     std::string funcname;//存储函数名字
+    std::string funcname;//存储函数名字
 
-     SAFE_BUFFER inline AutoLog(const std::string& szName = "", const std::string& perfix = "") noexcept {
+    SAFE_BUFFER inline AUTOLoG(const std::string& szName = "", const std::string& perfix = "") noexcept {
 
 #ifdef DEBUG_LOG
-         timepoint = Clock::now();
+        timepoint = Clock::now();
 
-         std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
+        std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
 
-         funcname = szName + " " + perfix;//函数的名字拼接上前缀
+        funcname = szName + " " + perfix;//函数的名字拼接上前缀
 
-         std::cout << funcname << xorstr("---> Begin\n");//当构造的时候会自动打印函数开始 
+        std::cout << funcname << xorstr("---> Begin\n");//当构造的时候会自动打印函数开始 
 #endif
-     }
+    }
 
-     SAFE_BUFFER inline  ~AutoLog() noexcept {//当对象析构的时候会自动调用
+    SAFE_BUFFER inline  ~AUTOLoG() noexcept {//当对象析构的时候会自动调用
 #ifdef DEBUG_LOG
-         auto end = Clock::now();
+        auto end = Clock::now();
 
-         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - timepoint).count();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - timepoint).count();
 
-         std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
+        std::unique_lock<decltype(logmtx)> lock(logmtx);//加锁使得多线程下不会出现问题
 
-         std::cout << funcname << xorstr("---> End Time: ")<<duration<<"ms\n";;//当对象析构时候自动打印结束
+        std::cout << funcname << xorstr("---> End Time: ") << duration << "ms\n";;//当对象析构时候自动打印结束
 #endif
-     }
+    }
 
- };
-#define AUTOLOG  AutoLog log(xorstr(__FUNCTION__),"");//直接打印函数名字
+};
+#define AUTOLOG  AUTOLoG log(xorstr(__FUNCTION__),"")//直接打印函数名字
 
-#define AUTOLOGPERFIX(STR)  AutoLog log(xorstr(__FUNCTION__),STR);//打印函数名字但是加上一些后缀 __FUNCTION__是MSVC下的宏用于获取函数名字   MSVC的扩展都是双下划线开头的
+#define AUTOLOGPERFIX(STR)  AUTOLoG log(xorstr(__FUNCTION__),STR);//打印函数名字但是加上一些后缀 __FUNCTION__是MSVC下的宏用于获取函数名字   MSVC的扩展都是双下划线开头的
 #else
 
 #define AUTOLOG             //release 模式下什么也不打印
@@ -306,12 +311,13 @@ float& GetGlobalDefaultCacheTimeRef() {//获取全局的缓存时间的引用
 constexpr static std::size_t ROOTSEED = 0x92E2194B;//哈希的种子
 
 namespace std {
+
     template<typename U>
     SAFE_BUFFER static inline  size_t hasher(const U& value) noexcept {//哈希器，用于对任意类型进行哈希
 
-        //AUTOLOGPERFIX(typeid(U).name())//自动记录日志
+        AUTOLOGPERFIX(typeid(U).name())//自动记录日志
 
-        static std::hash<U>&& hasher{};//生成一个hash对象
+        static std::hash<U> hasher{};//生成一个hash对象
 
         return hasher(value);//调用hasher
     }
@@ -321,9 +327,9 @@ namespace std {
 
         static SAFE_BUFFER inline size_t hashvalue(const tuple<T...>& t) noexcept {//对于tuple的hash
 
-            //AUTOLOGPERFIX(typeid(tuple<T...>).name())//自动记录日志
+            AUTOLOGPERFIX(typeid(tuple<T...>).name())//自动记录日志
 
-            static index_sequence_for<T...>&& index{};
+            static index_sequence_for<T...> index{};
 
             return hashImpl(t, index); //调用展开hashImpl
         }
@@ -331,16 +337,18 @@ namespace std {
         template<typename Tuple, size_t... I, typename expander = int[]>
         SAFE_BUFFER static inline size_t hashImpl(Tuple&& t, const index_sequence<I...>&, size_t seed = 0) noexcept {//对于tuple的hash的内部实现
 
-            //AUTOLOGPERFIX(typeid(Tuple).name())//自动记录日志
+            AUTOLOGPERFIX(typeid(Tuple).name())//自动记录日志
 
-            (void)expander {0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + ROOTSEED + (seed << 6) + (seed >> 2)), 0)...};//异或哈希
+            (void)expander {
+            0, ((seed ^= hasher(get<I>(std::forward<Tuple>(t))) + ROOTSEED + (seed << 6) + (seed >> 2)), 0)...
+        };//异或哈希
 
             return seed;//返回seed seed是一个hash值
         }
 
-        static SAFE_BUFFER inline size_t Seed()noexcept { 
+        static SAFE_BUFFER inline size_t Seed()noexcept {
 
-            AUTOLOG 
+            AUTOLOG;
 
             return ROOTSEED;
 
@@ -351,7 +359,7 @@ namespace std {
     struct hash<tuple<T...>> {//对于tuple的hash 其中tuple内是任意的类型
         SAFE_BUFFER inline size_t operator()(const tuple<T...>& t) const noexcept {
 
-            //AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(tuple<T...>).name()))//自动记录日志
+            AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(tuple<T...>).name()))//自动记录日志
 
             return TupleHasher<T...>::hashvalue(t); //调用hashvalue 获得hash值
         }
@@ -359,6 +367,7 @@ namespace std {
 
     template <typename ...T>
     struct hash<std::function<T...>> {//对于std::function的hash
+
         SAFE_BUFFER inline  size_t operator()(const std::function<T...>& f) const noexcept {
 
             AUTOLOGPERFIX(std::string(xorstr("hash<> ")) + std::string(typeid(std::function<T...>).name()))//自动记录日志
@@ -387,7 +396,7 @@ namespace memoizationsearch {
 
     protected:
 
-        SingleTon() { 
+        SingleTon() {
 
             AUTOLOGPERFIX(typeid(T).name())
 
@@ -401,13 +410,15 @@ namespace memoizationsearch {
 
             instancePtr.store(nullptr);       // 指针置空
         }
+
     public:
+
         template<typename... Args>
         SAFE_BUFFER inline static T& Construct(Args&&... args) noexcept {//构造对象
 
             AUTOLOGPERFIX(typeid(T).name())// 自动记录日志
 
-            std::call_once(initFlag, [&] { instancePtr.store(new T(std::forward<Args>(args)...));});
+            std::call_once(initFlag, [&] { instancePtr.store(new T(std::forward<Args>(args)...)); });
 
             return *instancePtr.load();  // 返回对象的引用
         }
@@ -453,7 +464,7 @@ namespace memoizationsearch {
     }
 
     //apply等于std::apply 就是f(std::get<0>(tuple),std::get<1>(tuple),std::get<2>(tuple)...)的意思 会自动展开tuple把tuple的元素传递给f当参数
-    template<typename F, typename Tuple, typename Index =make_index_sequence<std::tuple_size<typename std::remove_reference<Tuple>::type>::value> >
+    template<typename F, typename Tuple, typename Index = make_index_sequence<std::tuple_size<typename std::remove_reference<Tuple>::type>::value> >
     static SAFE_BUFFER inline auto Apply(F&& f, Tuple&& tuple)noexcept {
 
         AUTOLOGPERFIX(typeid(F).name())//自动记录日志
@@ -468,7 +479,7 @@ namespace memoizationsearch {
 
         AUTOLOGPERFIX(typeid(T).name())//自动记录日志
 
-        if(!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
+        if (!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
 
         return file.read(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//读取文件
     }
@@ -478,13 +489,13 @@ namespace memoizationsearch {
 
         AUTOLOGPERFIX(typeid(T).name())//自动记录日志
 
-        if(!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
+        if (!file) throw std::runtime_error(xorstr("File not open!"));//如果文件打开失败就抛出异常
 
         return file.write(reinterpret_cast<char*>((void*)&value), sizeof(value)).good();//写入文件
     }
 
     template<typename T, typename U>
-    static inline bool WritePairToFile(std::ofstream& file, std::pair<T, U>& pair) { 
+    static inline bool WritePairToFile(std::ofstream& file, std::pair<T, U>& pair) {
         //对于pair的写入
 
         AUTOLOGPERFIX(typeid(std::pair<T, U>).name())////自动记录日志
@@ -523,7 +534,7 @@ namespace memoizationsearch {
 
         AUTOLOGPERFIX(typeid(std::tuple<Args...>).name())//自动记录日志
 
-        return ReadTupleImpl(file, tuple); 
+        return ReadTupleImpl(file, tuple);
     }
 
     template<std::size_t I = 0, typename... Tp>
@@ -545,9 +556,9 @@ namespace memoizationsearch {
     }
 
     template<typename... Args>
-    SAFE_BUFFER static inline bool WriteTupleToFile(std::ofstream& file, const std::tuple<Args...>& tuple) noexcept { 
+    SAFE_BUFFER static inline bool WriteTupleToFile(std::ofstream& file, const std::tuple<Args...>& tuple) noexcept {
 
-        return WriteTupleImpl(file, tuple); 
+        return WriteTupleImpl(file, tuple);
     }//对于tuple的写入
 
     template<>
@@ -613,7 +624,7 @@ namespace memoizationsearch {
 
         AUTOLOGPERFIX(typeid(std::wstring).name())//自动记录日志
 
-        if (!file) return  false;     //文件打开失败
+         if (!file) return  false;     //文件打开失败
 
         auto length = wstr.size();//字符串的长度
 
@@ -628,7 +639,7 @@ namespace memoizationsearch {
 
         static std::recursive_mutex MemoizationGetCurrentTimeMtx;
 
-        static auto program_start = std::chrono::high_resolution_clock ::now().time_since_epoch();//程序开始的时间的时间戳
+        static auto program_start = std::chrono::high_resolution_clock::now().time_since_epoch();//程序开始的时间的时间戳
 
         thread_local static TimeType count = 0;
 
@@ -639,9 +650,9 @@ namespace memoizationsearch {
             bool m_locked;
 
         public:
-            SAFE_BUFFER explicit inline ScopeLock(std::recursive_mutex& mtx) noexcept : m_mutex(mtx), m_locked(false) { 
+            SAFE_BUFFER explicit inline ScopeLock(std::recursive_mutex& mtx) noexcept : m_mutex(mtx), m_locked(false) {
 
-                AUTOLOG 
+                AUTOLOG;
 
                 m_locked = m_mutex.try_lock();
 
@@ -649,7 +660,7 @@ namespace memoizationsearch {
 
             SAFE_BUFFER inline ~ScopeLock()noexcept {
 
-                AUTOLOG
+                AUTOLOG;
 
                 if (m_locked) m_mutex.unlock();
 
@@ -668,12 +679,14 @@ namespace memoizationsearch {
             TimeType offset = 0;//偏移 当有对象构造的时候会偏移
 
             std::recursive_mutex ObjectPoolMtx;//对象池的互斥量 但是是递归的
+
         public:
+
             inline ObjectPool() : offset(0) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                Size = 100* sizeof(T);//默认的大小是10MB的大小 n个T类型对象总大小为4KB
+                Size = 100 * sizeof(T);//默认的大小是10MB的大小 n个T类型对象总大小为4KB
 
                 objectpool = new unsigned char[Size];//分配内存 分配失败new会自动抛出std::bad_alloc异常
 
@@ -684,7 +697,7 @@ namespace memoizationsearch {
 
             ~ObjectPool() {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(ObjectPoolMtx);//加锁
 
@@ -694,7 +707,7 @@ namespace memoizationsearch {
             }
 
             template<typename U, typename... Args>
-            SAFE_BUFFER inline T& operator()(const U& prefix,const Args&... args){
+            SAFE_BUFFER inline T& operator()(const U& prefix, const Args&... args) {
 
                 AUTOLOGPERFIX(std::string(xorstr("Functor ")) + typeid(T).name())//自动记录日志
 
@@ -706,7 +719,7 @@ namespace memoizationsearch {
 
                 if (offset + sizeof(T) > Size) {//如果空间不够
 
-                    Size *=2;//扩大一倍
+                    Size *= 2;//扩大一倍
 
                     auto newpool = new unsigned char[Size];//分配新的空间
 
@@ -729,11 +742,12 @@ namespace memoizationsearch {
 
                 return *newObj;//返回对象的指针的解引用
             }
+
         };
 
         SAFE_BUFFER static inline TimeType MemoroizationGetCurrentTime() noexcept {
 
-            //AUTOLOG //自动记录日志
+            //AUTOLOG; //自动记录日志
             return std::chrono::duration_cast<std::chrono::microseconds>(program_start).count();//直接返回当前时间 program_start是程序开始的时间
         }
 
@@ -747,28 +761,28 @@ namespace memoizationsearch {
             return (LIKELY(b > INFINITYVALUE - a)) ? INFINITYVALUE : a + b;
         }
 
-        template<typename T> 
-        SAFE_BUFFER inline const T& Clamp(const T& m_value, const T& low, const T& high) noexcept { 
+        template<typename T>
+        SAFE_BUFFER inline const T& Clamp(const T& m_value, const T& low, const T& high) noexcept {
 
             AUTOLOGPERFIX(typeid(T).name())//自动记录日志
 
             return (m_value < low) ? low : (m_value > high) ? high : m_value; //返回m_value在low和high之间的值
         }
 
-        static inline SAFE_BUFFER std::string SizeToString(size_t value, std::string result="") noexcept {//将size_t转换为字符串
+        static inline SAFE_BUFFER std::string SizeToString(size_t value, std::string result = "") noexcept {//将size_t转换为字符串
 
-            AUTOLOG//自动记录日志
+            AUTOLOG;//自动记录日志
 
-            if (value == 0) return "0";//如果是0直接返回0
+                if (value == 0) return "0";//如果是0直接返回0
 
-            while ((value/=10) > 0) {result = (char)('0' + (value % 10)) + result;}//取余一次相当于取一位
+            while ((value /= 10) > 0) { result = (char)('0' + (value % 10)) + result; }//取余一次相当于取一位
 
             return result;
         }
 
         static inline SAFE_BUFFER  std::string PathTruncate(const std::string& path) noexcept {//将路径截断为最大长度为MEMOIZATIONSEARCH
 
-            AUTOLOG//自动记录日志
+            AUTOLOG;//自动记录日志
 
             std::string result = path;
 
@@ -786,14 +800,14 @@ namespace memoizationsearch {
             cdeclcall = 0,//默认的调用约定
 
 #ifdef _WIN64
-            stdcall=1,//64位下的stdcall
+            stdcall = 1,//64位下的stdcall
 
-            fastcall=2,//64位下的fastcall
+            fastcall = 2,//64位下的fastcall
 
 #endif // _WIN64
         };
 
-        struct CachedFunctionBase{
+        struct CachedFunctionBase {
 
             mutable void* m_funcAddr;//函数的地址
 
@@ -803,59 +817,64 @@ namespace memoizationsearch {
 
             mutable std::recursive_mutex m_mutex;//递归的互斥量
 
-            inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) { 
+            inline  CachedFunctionBase() :m_funcAddr(nullptr), m_callType(CallType::cdeclcall), m_cacheTime(0) {
 
-                AUTOLOG 
+                AUTOLOG;
+
             }//默认构造函数
 
             inline  CachedFunctionBase(void* funcAddr, CallType type, TimeType cacheTime = MEMOIZATIONSEARCH) : m_funcAddr(funcAddr), m_callType(type), m_cacheTime(cacheTime) {
 
-                AUTOLOG
+                AUTOLOG;
+
             }
 
-			inline virtual ~CachedFunctionBase() {
+            inline virtual ~CachedFunctionBase() {
 
-                AUTOLOG 
+                AUTOLOG;
+
             }//析构函数自动记录日志，确保父类的析构函数被调用
 
             inline void SetCacheValidTime(TimeType cacheTime) noexcept {//设置缓存的有效时间
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 m_cacheTime = cacheTime;//设置缓存的时间
             }//设置缓存的时间
 
-            inline TimeType GetCacheTime() const { 
+            inline TimeType GetCacheTime() const {
 
-                AUTOLOG
+                AUTOLOG;
 
                 return m_cacheTime;
+
             }//获取缓存的时间
-            inline operator void* () { 
-                AUTOLOG
+            inline operator void* () {
+                AUTOLOG;
 
                 return m_funcAddr;
+
             }//返回函数的地址
 
-            inline bool operator==(const CachedFunctionBase& others) noexcept { 
+            inline bool operator==(const CachedFunctionBase& others) noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
-                return m_funcAddr == others.m_funcAddr; 
+                return m_funcAddr == others.m_funcAddr;
 
             }//比较两个元素的相等与否
 
-            template<typename Func>inline bool operator==(Func&& f) noexcept { 
+            template<typename Func>inline bool operator==(Func&& f) noexcept {
 
-                AUTOLOG  
+                AUTOLOG;
 
                 return m_funcAddr == &f;
-            
+
             }//比较两个元素的相等与否
 
-            inline bool operator!=(const CachedFunctionBase& others) noexcept { 
+            inline bool operator!=(const CachedFunctionBase& others) noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
                 return m_funcAddr != others.m_funcAddr;
 
@@ -863,37 +882,40 @@ namespace memoizationsearch {
 
             template<typename Func>
             inline bool operator!=(Func&& f) noexcept {
-                AUTOLOG 
+
+                AUTOLOG;
 
                 return m_funcAddr != &f;
 
             }//比较两个元素的相等与否
 
             inline operator bool()noexcept {
-               AUTOLOG 
+                AUTOLOG;
 
-               return (bool)m_funcAddr;
+                return (bool)m_funcAddr;
 
             }//判断是否为空
 
             inline auto Raw() const noexcept {
-                AUTOLOG 
+
+                AUTOLOG;
 
                 return m_funcAddr;
 
             }//返回函数的地址
 
-            inline auto operator&() { 
-                AUTOLOG  
+            inline auto operator&() {
 
-                return this->Raw(); 
+                AUTOLOG;
+
+                return this->Raw();
 
             }//重载&操作符 返回函数的地址
 
             //宏定义返回当前平台的名字
             SAFE_BUFFER inline std::string GetPlatformName() const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                     //判断平台
 #if defined(_NTDDK_)
@@ -920,7 +942,7 @@ namespace memoizationsearch {
             template<typename T>
             SAFE_BUFFER inline std::string GetUniqueName(const T&, const char* szFileName) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 static const auto&& platform = GetPlatformName();//获取平台的名字
 
@@ -929,7 +951,7 @@ namespace memoizationsearch {
 
             inline std::string GetObjectName() const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return typeid(CachedFunctionBase).name();//返回类型的名字
             }
@@ -954,11 +976,12 @@ namespace memoizationsearch {
 
         template <std::size_t I = 0, typename... Args, typename Tuple = std::tuple<Args...>>
         SAFE_BUFFER static inline bool const CompareTuple(Tuple&& tupA, Tuple&& tupB) noexcept {
-            //AUTOLOGPERFIX(std::to_string(I))//日志打印自己是哪一个CompareTuple 方便知道自己是几层递归
 
-            const auto& tupleA= std::forward<Tuple>(tupA);
+            AUTOLOGPERFIX(std::to_string(I))//日志打印自己是哪一个CompareTuple 方便知道自己是几层递归
 
-            const auto& tupleB= std::forward<Tuple>(tupB);
+            const auto& tupleA = std::forward<Tuple>(tupA);
+
+            const auto& tupleB = std::forward<Tuple>(tupB);
 
             const auto& elemA = std::get<I>(tupleA);
 
@@ -968,13 +991,14 @@ namespace memoizationsearch {
 
             bool equal = false;
 
-			if constexpr (std::is_arithmetic<ItemType>::value || !is_hashable<ItemType>::value) {//判断是否是基本型
+            if constexpr (std::is_arithmetic<ItemType>::value || !is_hashable<ItemType>::value) {//判断是否是基本型
 
-                equal=(elemA == elemB);
+                equal = (elemA == elemB);
 
-            } else {
+            }
+            else {
 
-                equal=(std::hasher(elemA) == std::hasher(elemB));//非基本类型就对其求hash比较
+                equal = (std::hasher(elemA) == std::hasher(elemB));//非基本类型就对其求hash比较
 
             }
 
@@ -984,7 +1008,8 @@ namespace memoizationsearch {
 
                 return CompareTuple<I + 1>(tupleA, tupleB);//非最后一个就递归
 
-            }else {
+            }
+            else {
 
                 return true;//少递归了一次 递归基
 
@@ -998,7 +1023,7 @@ namespace memoizationsearch {
         template<typename R, typename... Args>
         struct CachedFunction : public CachedFunctionBase {//具有参数的缓存函数是一个继承自CachedFunctionBase的类
 
-            using   FuncType =  R(std::decay_t<Args>...);//声明函数类型
+            using   FuncType = R(std::decay_t<Args>...);//声明函数类型
 
             mutable std::function<FuncType> m_Func;//函数对象
 
@@ -1023,78 +1048,89 @@ namespace memoizationsearch {
             mutable std::unordered_map<ArgsType, std::pair<bool, TimeType>> m_FilterResultCache; // 缓存结果和时间戳
 
             inline  iterator begin() {
-                AUTOLOG 
+
+                AUTOLOG;
 
                 return m_Cache->begin();
 
             }//返回缓存的开始迭代器 用于遍历
 
             inline  iterator end() {
-                AUTOLOG
 
-                return m_Cache->end(); 
+                AUTOLOG;
+
+                return m_Cache->end();
 
             }//返回缓存的末尾迭代器 用于遍历
 
             inline bool operator<(const CachedFunction& others) {
-                AUTOLOG 
 
-                return m_Cache->size() < others.m_Cache->size(); 
+                AUTOLOG;
+
+                return m_Cache->size() < others.m_Cache->size();
 
             }//比较缓存大小
 
             inline bool operator>(const CachedFunction& others) {
-                AUTOLOG
-                    
-                return m_Cache->size() > others.m_Cache->size(); 
+
+                AUTOLOG;
+
+                return m_Cache->size() > others.m_Cache->size();
 
             }//比较缓存大小
 
             inline bool operator<=(const CachedFunction& others) {
-                AUTOLOG  
-                    
+
+                AUTOLOG;
+
                 return m_Cache->size() <= others.m_Cache->size();
 
             }//比较缓存大小
 
-            inline auto Raw()const { 
-                AUTOLOG
+            inline auto Raw()const {
+
+                AUTOLOG;
 
                 return m_funcAddr;
 
             }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
 
-            inline auto operator&() const { 
-                AUTOLOG
+            inline auto operator&() const {
 
-               return m_funcAddr;
+                AUTOLOG;
+
+                return m_funcAddr;
 
             }//返回函数指针但是lambda是没有函数指针的只有函数对象的地址
 
             inline bool operator>=(const CachedFunction& others) {
-                AUTOLOG 
+
+                AUTOLOG;
 
                 return m_Cache->size() >= others.m_Cache->size();
 
             }//比较缓存大小
 
             //拷贝构造函数委托了父类的构造函数 并且拷贝了缓存
-			inline bool& GetFilterCacheStatusRef() {//获取过滤回调是否缓存状态的引用 注意：设置为false虽然提高了实时性但是降低了可用性
-                AUTOLOG//自动记录日志
+            inline bool& GetFilterCacheStatusRef() {//获取过滤回调是否缓存状态的引用 注意：设置为false虽然提高了实时性但是降低了可用性
+
+                AUTOLOG;//自动记录日志
 
                 return m_FilterCacheStatus;
 
             }
 
             SAFE_BUFFER inline bool Filter(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
-                //AUTOLOG//自动记录日志
 
-				return (LIKELY(m_FilterCacheStatus)) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
+                AUTOLOG;//自动记录日志
+
+                return (LIKELY(m_FilterCacheStatus)) ? FilterCache(value, argsTuple, nowtime) : FilterNoCache(value, argsTuple);
 
             }
 
             SAFE_BUFFER inline bool FilterNoCache(const R& value, const ArgsType& argsTuple) noexcept {
-                AUTOLOG//自动记录日志
+
+                AUTOLOG;//自动记录日志
 
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
 
@@ -1108,7 +1144,8 @@ namespace memoizationsearch {
 
             SAFE_BUFFER inline bool FilterCache(const R& value, const ArgsType& argsTuple, TimeType nowtime) noexcept {
 
-                //AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
+
                 if (m_FilerCallBacks.empty()) return true; // 如果没有过滤回调，直接返回 true
 
                 // 检查缓存中是否已有结果
@@ -1122,7 +1159,8 @@ namespace memoizationsearch {
                 if (cached_result.second > nowtime) {
 
                     return cached_result.first; // 返回缓存结果
-                }else {
+                }
+                else {
 
                     m_FilterResultCache.erase(it); // 如果缓存过期，移除它
                 }
@@ -1138,7 +1176,8 @@ namespace memoizationsearch {
                     if (!callback.second(value, argsTuple)) {
 
                         falseCallbacks.push_back(callback.second); // 存储返回 false 的回调
-                    }else {
+                    }
+                    else {
 
                         trueCallbacks.push_back(callback.second); // 存储返回 true 的回调
                     }
@@ -1172,13 +1211,13 @@ namespace memoizationsearch {
                 return true;
             }
 
-            [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks,bool bReserverOld=true)noexcept {
+            [[nodiscard]] SAFE_BUFFER inline HCALLBACK AddFilterCallbacks(const CallFuncType& callbacks, bool bReserverOld = true)noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-				if (!callbacks) return INVALID_CALLBACK_HANDLE;//回调为空 callbacks是function对象
+                if (!callbacks) return INVALID_CALLBACK_HANDLE;//回调为空 callbacks是function对象
 
                 HCALLBACK randnumber = INVALID_CALLBACK_HANDLE;
 
@@ -1186,9 +1225,9 @@ namespace memoizationsearch {
 
                     randnumber = getRandom<HCALLBACK>(0, INFINITYCACHE);
 
-				} while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
+                } while (GetFilterCallbacks(randnumber) != m_FilerCallBacks.end());
 
-                m_FilerCallBacks.insert(std::make_pair(randnumber,callbacks));
+                m_FilerCallBacks.insert(std::make_pair(randnumber, callbacks));
 
                 if (UNLIKELY(!bReserverOld))ApplyFilter();
 
@@ -1196,13 +1235,13 @@ namespace memoizationsearch {
             }
 
             SAFE_BUFFER inline bool DeleteFilterCallbacks(HCALLBACK& hcallback) noexcept {
-                AUTOLOG; // 自动记录日志
+                AUTOLOG;
 
-                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return false; // 返回 nullptr 表示无效回调
+                if (!ValidCallBackHandle(hcallback) || m_FilerCallBacks.empty()) return false; // 返回 nullptr 表示无效回调
 
                 ScopeLock lock(m_mutex); // 加锁保证线程安全
 
-				auto it = GetFilterCallbacks(hcallback);//查找m_FilerCallBacks中的回调
+                auto it = GetFilterCallbacks(hcallback);//查找m_FilerCallBacks中的回调
 
                 if (UNLIKELY(it == m_FilerCallBacks.end())) return false; // 返回 nullptr 表示未找到回调
 
@@ -1213,27 +1252,27 @@ namespace memoizationsearch {
                 return true; // 返回被删除的回调智能指针
             }
 
-			SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
-				AUTOLOG; // 自动记录日志
+            SAFE_BUFFER inline bool ClearFilterCallbacks() noexcept {
+                AUTOLOG;
 
-				ScopeLock lock(m_mutex); // 加锁保证线程安全
+                ScopeLock lock(m_mutex); // 加锁保证线程安全
 
                 if (m_FilerCallBacks.empty()) return false;//回调列表为空返回false
 
-				m_FilerCallBacks.clear(); // 清空所有回调
+                m_FilerCallBacks.clear(); // 清空所有回调
 
                 return true;
-			}
+            }
 
-            SAFE_BUFFER inline bool ChangeFilterCallBacks(const HCALLBACK& hCallBack, const CallFuncType& newcallbacks,bool bReserveOld=true)noexcept {
+            SAFE_BUFFER inline bool ChangeFilterCallBacks(const HCALLBACK& hCallBack, const CallFuncType& newcallbacks, bool bReserveOld = true)noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                if (!ValidCallBackHandle(hCallBack)|| !newcallbacks|| m_FilerCallBacks.empty()) return false;//没有回调句柄
+                if (!ValidCallBackHandle(hCallBack) || !newcallbacks || m_FilerCallBacks.empty()) return false;//没有回调句柄
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-				auto it = GetFilterCallbacks(hCallBack);//获取回调的迭代器
+                auto it = GetFilterCallbacks(hCallBack);//获取回调的迭代器
 
                 if (it == m_FilerCallBacks.end()) return false;//没找到老的
 
@@ -1246,9 +1285,9 @@ namespace memoizationsearch {
 
             SAFE_BUFFER inline void ApplyFilter() {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                std::ignore=std::async([this]() {
+                std::ignore = std::async([this]() {
 
                     ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1260,7 +1299,8 @@ namespace memoizationsearch {
 
                             it = m_Cache->erase(it);
 
-                        }else {
+                        }
+                        else {
 
                             ++it;
                         }
@@ -1270,41 +1310,42 @@ namespace memoizationsearch {
 
             SAFE_BUFFER inline auto GetFilterCallbacks(HCALLBACK hcallback)noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                if (!ValidCallBackHandle(hcallback)|| m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//没有回调句柄
+                if (!ValidCallBackHandle(hcallback) || m_FilerCallBacks.empty()) return m_FilerCallBacks.end();//没有回调句柄
 
                 return m_FilerCallBacks.find(hcallback);
             }
 
             SAFE_BUFFER inline auto& GetAllFilterCallBacksRef() {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return m_FilerCallBacks;
             }
 
-            SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr, 
+            SAFE_BUFFER inline CachedFunction(const CachedFunction& others) : CachedFunctionBase(others.m_funcAddr,
 
                 others.m_callType, others.m_cacheTime), m_Func(others.m_Func), m_Cache(std::make_unique<CacheType>()) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-                if (others.m_Cache &&!others.m_Cache->empty())for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//拷贝所有的缓存
+                if (others.m_Cache && !others.m_Cache->empty())for (const auto& pair : *others.m_Cache)m_Cache->insert(pair);//拷贝所有的缓存
 
                 if (LIKELY((bool)m_Cache)) {//如果缓存的内存不为空 
 
                     m_Cache->reserve((TimeType)MEMOIZATIONSEARCH);//预先分配空间
 
                 }
+
             }
 
             //获取缓存函数的名字
             inline std::string GetObjectName() const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return typeid(CachedFunction).name();//返回类型的名字
 
@@ -1312,7 +1353,7 @@ namespace memoizationsearch {
 
             inline CachedFunction(const std::initializer_list<std::pair<ArgsType, ValueType>>& list) : CachedFunctionBase(nullptr, CallType::cdeclcall, MEMOIZATIONSEARCH), m_Cache(std::make_unique<CacheType>()) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1323,20 +1364,21 @@ namespace memoizationsearch {
 
             inline CachedFunction(CachedFunction&& other) noexcept : CachedFunctionBase(other.m_funcAddr, other.m_callType, other.m_cacheTime), m_Func(std::move(other.m_Func)) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                m_Cache=std::move(other.m_Cache);
+                m_Cache = std::move(other.m_Cache);
 
             }
 
-            inline ~CachedFunction() noexcept { 
+            inline ~CachedFunction() noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
             }
 
             inline CachedFunction& operator=(CachedFunction&& others)noexcept {
-                AUTOLOG//自动记录日志
+
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1355,9 +1397,9 @@ namespace memoizationsearch {
                 return *this;
             }
 
-            inline auto operator*()noexcept { 
+            inline auto operator*()noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return *m_Cache;
 
@@ -1365,7 +1407,7 @@ namespace memoizationsearch {
 
             inline CachedFunction& operator=(const CachedFunction& others)noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1383,20 +1425,20 @@ namespace memoizationsearch {
 
             inline operator std::function<FuncType>()noexcept {
 
-                AUTOLOG
+                AUTOLOG;
 
                 return m_Func;
             }
 
             inline CachedFunction& operator+(const CachedFunction& others) noexcept {//合并缓存重载+操作符
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
                 if (!others.m_Cache->empty()) {//其他的缓存不为空
 
-                    for (const auto& pair : *others.m_Cache){//遍历所有的缓存
+                    for (const auto& pair : *others.m_Cache) {//遍历所有的缓存
 
                         if (m_Cache->find(pair.first) == m_Cache->end())m_Cache->insert(pair);//仅仅拷贝不存在的缓存
                     }
@@ -1411,11 +1453,11 @@ namespace memoizationsearch {
 
             inline CachedFunction& operator+=(const CachedFunction& others) noexcept {//合并缓存重载+=操作符
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-                if (!others.m_Cache->empty()){//其他的缓存不为空
+                if (!others.m_Cache->empty()) {//其他的缓存不为空
 
                     for (const auto& pair : *others.m_Cache) {//遍历所有的缓存
 
@@ -1435,18 +1477,19 @@ namespace memoizationsearch {
 
             inline CachedFunction& operator-(const CachedFunction& others)noexcept {//删除缓存重载-操作符
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-                if (!m_Cache->empty()){//自己的缓存不为空
+                if (!m_Cache->empty()) {//自己的缓存不为空
 
                     for (auto iter = m_Cache->begin(); iter != m_Cache->end();) {
 
                         if (others.m_Cache->find((*iter).first) != others.m_Cache->end()) {
 
                             iter = m_Cache->erase((*iter).first);
-                        }else {
+                        }
+                        else {
 
                             ++iter;
                         }
@@ -1457,18 +1500,19 @@ namespace memoizationsearch {
 
             inline CachedFunction& operator-=(const CachedFunction& others) noexcept {//删除缓存重载-=操作符
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
-                if (!m_Cache->empty()){//自己的缓存不为空
+                if (!m_Cache->empty()) {//自己的缓存不为空
 
                     for (auto iter = m_Cache->begin(); iter != m_Cache->end();) {
 
                         if (others.m_Cache->find((*iter).first) != others.m_Cache->end()) {
 
-                            iter=m_Cache->erase((*iter).first);
-                        }else {
+                            iter = m_Cache->erase((*iter).first);
+                        }
+                        else {
 
                             ++iter;
                         }
@@ -1477,9 +1521,9 @@ namespace memoizationsearch {
                 return *this;//返回自己
             }
 
-            inline void SetCacheTime(TimeType cacheTime,bool reserveOld=true) noexcept {//设置缓存的时间
+            inline void SetCacheTime(TimeType cacheTime, bool reserveOld = true) noexcept {//设置缓存的时间
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1492,14 +1536,18 @@ namespace memoizationsearch {
 
                 TimeType nowtime = MemoroizationGetCurrentTime();//获取当前时间
 
-                for (auto it = m_Cache->begin(); it != m_Cache->end(); it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it) {}//删除过期的缓存
+                for (auto it = m_Cache->begin(); it != m_Cache->end(); ) {
+
+                    it = (it->second.second < nowtime) ? m_Cache->erase(it) : ++it;
+
+                }//删除过期的缓存
 
                 m_cacheTime = cacheTime;//设置缓存的时间
             }
 
             inline CachedFunction(void* funcAddr, CallType type, const std::function<FuncType>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);
 
@@ -1511,16 +1559,16 @@ namespace memoizationsearch {
                 }
             }
 
-            std::size_t& GetMaxRecursiveCountRef() {return m_MaxRecursiveCount;}
-            SAFE_BUFFER inline R& AsyncsUpdateCache(CacheType& Instance,TimeType nowtime,const ArgsType& argsTuple)noexcept {//异步更新缓存
+            std::size_t& GetMaxRecursiveCountRef() { return m_MaxRecursiveCount; }
+            SAFE_BUFFER inline R& AsyncsUpdateCache(CacheType& Instance, TimeType nowtime, const ArgsType& argsTuple)noexcept {//异步更新缓存
 
-                AUTOLOG
+                AUTOLOG;
 
                 const auto& ret = Apply(m_Func, argsTuple);//调用函数
 
                 ScopeLock lock(m_mutex);//加锁
 
-                return Instance.insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime + getRandom<TimeType>(0,m_cacheTime>>1)) }).first->second.first;
+                return Instance.insert_or_assign(argsTuple, ValueType{ ret, safeadd<TimeType>(nowtime,m_cacheTime + getRandom<TimeType>(0,m_cacheTime >> 1)) }).first->second.first;
             }
 
             SAFE_BUFFER inline R& operator()(const Args&... args)noexcept {
@@ -1529,7 +1577,7 @@ namespace memoizationsearch {
 
                 const ArgsType& argsTuple = std::forward_as_tuple(std::cref(args)...);//构造参数的tuple
 
-                auto& m_CacheIntance= *m_Cache.get();//获取缓存的实例
+                auto& m_CacheIntance = *m_Cache.get();//获取缓存的实例
 
                 auto&& iter = m_CacheIntance.find(argsTuple);
 
@@ -1540,19 +1588,19 @@ namespace memoizationsearch {
                     if (LIKELY(valuepair.second >= nowtime))return valuepair.first;//如果缓存的时间大于当前时间直接返回(有效)
                 }
 
-                return AsyncsUpdateCache(m_CacheIntance,nowtime,argsTuple); // 未找到则更新;
+                return AsyncsUpdateCache(m_CacheIntance, nowtime, argsTuple); // 未找到则更新;
             }
 
-            inline void CleanCache() const noexcept { 
+            inline void CleanCache() const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 std::thread([&]() {ScopeLock lock(m_mutex); m_Cache->clear(); }).detach();//异步清空缓存 加锁是为了防止多线程同时操作
             }
 
             inline void CleanCache(const ArgsType& parameters) const noexcept {//清空指定的缓存 指定的参数必须是tuple
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);
 
@@ -1563,7 +1611,7 @@ namespace memoizationsearch {
 
             inline void SetCacheResetTime(const ArgsType& parameters, TimeType cacheTime) const noexcept {//设置指定的参数的缓存的时间
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);
 
@@ -1574,7 +1622,7 @@ namespace memoizationsearch {
 
             inline bool SaveCache(const char* szFileName)noexcept {//将缓存保存到文件
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//二进制形式打开文件
 
@@ -1585,7 +1633,7 @@ namespace memoizationsearch {
 
             inline bool LoadCache(const char* szFileName)noexcept {//从文件加载缓存
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios::binary);//二进制形式打开文件
 
@@ -1598,7 +1646,7 @@ namespace memoizationsearch {
 
             inline bool operator>>(std::ofstream& file) {//将缓存写入文件
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 if (!file.is_open()) return false;//如果文件没有打开返回false
 
@@ -1621,11 +1669,11 @@ namespace memoizationsearch {
 
             inline bool operator<<(std::ifstream& file) noexcept {//从文件读取缓存
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 if (!file.is_open()) return false;//如果文件没有打开返回false
 
-				if (file.tellg() == 0) return false;//如果文件的位置是0返回false
+                if (file.tellg() == 0) return false;//如果文件的位置是0返回false
 
                 ScopeLock lock(m_mutex);//加锁保证线程安全
 
@@ -1645,7 +1693,8 @@ namespace memoizationsearch {
                     if (it->second.second < MemoroizationGetCurrentTime()) {
 
                         it = m_Cache->erase(it); // erase returns the next valid iterator
-                    }else {
+                    }
+                    else {
 
                         ++it; // only increment if not erased
                     }
@@ -1656,7 +1705,7 @@ namespace memoizationsearch {
 
             inline void operator>>(const CachedFunction& others) noexcept { //将自己的缓存插入到others的缓存中
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 for (const auto& pair : *m_Cache)others.m_Cache->insert(pair); //插入到others的缓存中
 
@@ -1664,7 +1713,7 @@ namespace memoizationsearch {
 
             inline void operator<<(const CachedFunction& others) noexcept {//将others的缓存插入到自己的缓存中
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);
 
@@ -1674,15 +1723,15 @@ namespace memoizationsearch {
 
             friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction& func)noexcept {//重载输出流
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                return  os<<func.m_Cache->size() << std::endl;//输出缓存的大小（个数）
+                return  os << func.m_Cache->size() << std::endl;//输出缓存的大小（个数）
 
             }
 
             inline std::function<FuncType>* operator->()noexcept {
 
-                AUTOLOG
+                AUTOLOG;
 
                 return &m_Func;
 
@@ -1690,15 +1739,15 @@ namespace memoizationsearch {
 
             inline bool empty()const noexcept {
 
-                AUTOLOG 
-                    
-                return m_Cache->empty();
+                AUTOLOG;
+
+               return m_Cache->empty();
 
             }//判断缓存是否为空
 
-            inline std::size_t size()const noexcept { 
+            inline std::size_t size()const noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
                 return m_Cache->size();
 
@@ -1706,7 +1755,7 @@ namespace memoizationsearch {
 
             SAFE_BUFFER inline iterator GetRef(const Args&...args)const noexcept {//重载下标操作符
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 auto&& key = std::forward_as_tuple(std::cref(args)...);
 
@@ -1722,19 +1771,19 @@ namespace memoizationsearch {
 
             inline CachedFunction(const CacheitemType<R>& cache) :m_Func(nullptr), m_Cache(cache) {
 
-                AUTOLOG
+                AUTOLOG;
 
             }
 
             inline CachedFunction(void* funcAddr, CallType type, const std::function<R()>& func, TimeType cacheTime = MEMOIZATIONSEARCH) : CachedFunctionBase(funcAddr, type, cacheTime), m_Func(std::move(func)), m_Cache(std::make_pair(R{}, 0)) {
 
-                AUTOLOG 
+                AUTOLOG;
 
             }
 
             inline R& setcacheresettime(const R& value, const  TimeType  cacheTime = MemoroizationGetCurrentTime())const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);
 
@@ -1745,29 +1794,29 @@ namespace memoizationsearch {
 
             inline std::string GetObjectName() const noexcept {//获取对象的名字 类型的名字
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return typeid(CachedFunction).name();
             }
 
-            inline operator bool()noexcept { 
+            inline operator bool()noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
                 return (bool)m_Func;
             }//检查函数是否有效
 
-            inline operator std::function<R()>()noexcept { AUTOLOG  return m_Func; }
-             inline CachedFunction(CachedFunction&& other) noexcept : CachedFunctionBase(other.m_funcAddr, other.m_callType, other.m_cacheTime), m_Func(std::move(other.m_Func)), m_Cache(std::move(other.m_Cache)) {
+            inline operator std::function<R()>()noexcept { AUTOLOG;  return m_Func; }
+            inline CachedFunction(CachedFunction&& other) noexcept : CachedFunctionBase(other.m_funcAddr, other.m_callType, other.m_cacheTime), m_Func(std::move(other.m_Func)), m_Cache(std::move(other.m_Cache)) {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 m_funcAddr = std::move(other.m_funcAddr);
             }
 
             inline CachedFunction& operator=(CachedFunction&& others) noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 m_Func = std::move(others.m_Func);
 
@@ -1780,13 +1829,13 @@ namespace memoizationsearch {
                 return *this;
             }
 
-            inline CachedFunction(const CachedFunction& others) :CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Cache(others.m_Cache), m_Func(others.m_Func) { 
+            inline CachedFunction(const CachedFunction& others) :CachedFunctionBase(others.m_funcAddr, others.m_callType, others.m_cacheTime), m_Cache(others.m_Cache), m_Func(others.m_Func) {
 
-                AUTOLOG
+                AUTOLOG;
             }
 
             inline CachedFunction& operator=(const CachedFunction& others)noexcept {
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 m_Cache = others.m_Cache;
 
@@ -1799,9 +1848,9 @@ namespace memoizationsearch {
 
             inline bool LoadCache(const char* szFileName)noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                std::ifstream file(GetUniqueName(m_Func,szFileName), std::ios_base::binary);
+                std::ifstream file(GetUniqueName(m_Func, szFileName), std::ios_base::binary);
 
                 if (!file.is_open() || !operator<<(file)) return false;
 
@@ -1812,9 +1861,9 @@ namespace memoizationsearch {
 
             inline bool SaveCache(const char* szFileName) noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
-                std::ofstream file(GetUniqueName(m_Func,szFileName), std::ios::binary |std::ios::out|std::ios::trunc);
+                std::ofstream file(GetUniqueName(m_Func, szFileName), std::ios::binary | std::ios::out | std::ios::trunc);
 
                 if (!file.is_open() || !operator>>(file)) return false;
 
@@ -1825,7 +1874,7 @@ namespace memoizationsearch {
 
             inline bool operator >> (const std::ofstream& file) noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 if (!file.is_open()) return false;
 
@@ -1836,7 +1885,7 @@ namespace memoizationsearch {
 
             inline bool operator << (const std::ifstream& file) noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 if (!file.is_open()) return false;
 
@@ -1851,53 +1900,59 @@ namespace memoizationsearch {
                 return true;
             }
 
-            inline void operator >> (const CachedFunction& others)noexcept { 
+            inline void operator >> (const CachedFunction& others)noexcept {
 
-                AUTOLOG 
+                AUTOLOG;
 
-                others.m_Cache = m_Cache; 
+                others.m_Cache = m_Cache;
             }
 
-            inline void operator << (const CachedFunction& others) noexcept { 
+            inline void operator << (const CachedFunction& others) noexcept {
 
-                AUTOLOG
+                AUTOLOG;
 
-                m_Cache = others.m_Cache;
+                    m_Cache = others.m_Cache;
             }
+
             friend inline std::ostream& operator<<(std::ostream& os, const CachedFunction&)noexcept {
 
-                AUTOLOG
+                AUTOLOG;
 
-                return os << 1; 
+                return os << 1;
             }
+
             SAFE_BUFFER inline R& operator()() const noexcept {
 
                 AUTOLOGPERFIX(typeid(CachedFunction).name() + std::string(xorstr("Functor")))//自动记录日志
 
                 if ((TimeType)m_Cache.second > (TimeType)MemoroizationGetCurrentTime()) return m_Cache.first;
 
-                return setcacheresettime(m_Func(),(safeadd<TimeType>(MemoroizationGetCurrentTime(), m_cacheTime)));
+                return setcacheresettime(m_Func(), (safeadd<TimeType>(MemoroizationGetCurrentTime(), m_cacheTime)));
             }
             inline void CleanCache()const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 ScopeLock lock(m_mutex);//加锁
 
-                m_Cache.second = MemoroizationGetCurrentTime() - 1, m_Cache.first = R(); 
+                m_Cache.second = MemoroizationGetCurrentTime() - 1, m_Cache.first = R();
             }
 
-            inline std::function<R()>* operator->()noexcept { AUTOLOG  return &m_Func; }
-            inline bool empty()const noexcept { 
+            inline std::function<R()>* operator->()noexcept {
+                AUTOLOG;
+                return &m_Func;
+            }
 
-                AUTOLOG//自动记录日志
+            inline bool empty()const noexcept {
+
+                AUTOLOG;//自动记录日志
 
                 return std::hash(m_Cache.first) == std::hash(R{}); //如果缓存的值是默认值则为空 
             }
 
-            inline std::size_t size()const noexcept { 
+            inline std::size_t size()const noexcept {
 
-                AUTOLOG//自动记录日志
+                AUTOLOG;//自动记录日志
 
                 return 1; //函数只有一个缓存
             }
@@ -2009,7 +2064,7 @@ namespace memoizationsearch {
 
 #endif // _WIN64
         template <typename R, typename... Args>
-        inline static auto& GetCachedFunction(void* funcAddr, CallType type,std::function<R(Args...)>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
+        inline static auto& GetCachedFunction(void* funcAddr, CallType type, std::function<R(Args...)>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
 
             AUTOLOGPERFIX(typeid(std::function<R(Args...)>).name())//自动记录日志
 
@@ -2018,11 +2073,11 @@ namespace memoizationsearch {
         }
 
         template <typename R>
-        inline static auto GetCachedFunction(void* funcAddr, CallType type,std::function<R()>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
+        inline static auto GetCachedFunction(void* funcAddr, CallType type, std::function<R()>&& func, TimeType cacheTime = MEMOIZATIONSEARCH) noexcept {
 
             AUTOLOGPERFIX(typeid(std::function<R()>).name())//自动记录日志
 
-            return  CachedFunction<R>(funcAddr, type,std::forward<std::function<R()>>(func), cacheTime);//根据参数和类型构造一个缓存函数
+            return  CachedFunction<R>(funcAddr, type, std::forward<std::function<R()>>(func), cacheTime);//根据参数和类型构造一个缓存函数
 
         }
 
@@ -2038,7 +2093,7 @@ namespace memoizationsearch {
         }
 
         template<typename T, typename R, typename... Args>
-        SAFE_BUFFER inline auto ThisCall(T& obj, R(T::* func)(Args...))noexcept { 
+        SAFE_BUFFER inline auto ThisCall(T& obj, R(T::* func)(Args...))noexcept {
 
             AUTOLOGPERFIX(typeid(T).name())//自动记录日志
 
@@ -2047,11 +2102,11 @@ namespace memoizationsearch {
         }
 
         template<typename T, typename F>
-        inline auto ConvertMemberFunction(const T& obj, F&& func)noexcept { 
+        inline auto ConvertMemberFunction(const T& obj, F&& func)noexcept {
 
-            AUTOLOG 
+            AUTOLOG;
 
-            return ThisCall(const_cast<T&>(obj), std::forward<F>(func)); 
+            return ThisCall(const_cast<T&>(obj), std::forward<F>(func));
 
         }//转换成员函数成为一个可调用的函数对象
 #ifdef _MSC_VER
@@ -2060,19 +2115,21 @@ namespace memoizationsearch {
 
 #endif
     }
-    template<typename T> 
+    template<typename T>
     using ArgsType_v = std::make_index_sequence<std::tuple_size<T>::value>;//通过tuple的大小生成一个index_sequence
 }
 
 //缓存函数的创建的加强版
-template<typename F>inline  auto MakeCacheEx(F&& f, const  memoizationsearch::nonstd::CallType& calltype= memoizationsearch::nonstd::CallType::cdeclcall, TimeType _validtime=MEMOIZATIONSEARCH)noexcept {
+template<typename F>
+inline  auto MakeCacheEx(F&& f, const  memoizationsearch::nonstd::CallType& calltype = memoizationsearch::nonstd::CallType::cdeclcall, TimeType _validtime = MEMOIZATIONSEARCH)noexcept {
+
     AUTOLOGPERFIX(typeid(F).name())
 
     using namespace memoizationsearch;
 
-	using namespace memoizationsearch::nonstd;
+    using namespace memoizationsearch::nonstd;
 
-    auto validtime =Clamp(_validtime, (TimeType)1, INFINITYCACHE);//有效时间 相加不会溢出 最大只会返回INFINITYCACHE
+    auto validtime = Clamp(_validtime, (TimeType)1, INFINITYCACHE);//有效时间 相加不会溢出 最大只会返回INFINITYCACHE
 
 #ifdef _WIN64
 
@@ -2083,43 +2140,44 @@ template<typename F>inline  auto MakeCacheEx(F&& f, const  memoizationsearch::no
         break;
         //对于stdcall的特殊处理
 
-    case  CallType::stdcall: 
+    case  CallType::stdcall:
 
         return  MakeCachedImpl(std::forward<F>(f), calltype, validtime, ArgsType_v<typename  stdcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
 
         //对于fastcall的特殊处理
-    case  CallType::fastcall: 
+    case  CallType::fastcall:
 
-        return  MakeCachedImpl(std::forward<F>(f), calltype, validtime,ArgsType_v<typename  fastcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
+        return  MakeCachedImpl(std::forward<F>(f), calltype, validtime, ArgsType_v<typename  fastcallfunction_traits<std::decay_t<F>>::args_tuple_type>{});
 
     }
 
 #endif // _WIN64
-    return  MakeCachedImpl(std::forward<F>(f), calltype, validtime,ArgsType_v<typename function_traits<std::decay_t<F>>::args_tuple_type>{});//根据参数和类型构造一个缓存函数
+    return  MakeCachedImpl(std::forward<F>(f), calltype, validtime, ArgsType_v<typename function_traits<std::decay_t<F>>::args_tuple_type>{});//根据参数和类型构造一个缓存函数
 
 }
 
-template<typename R, typename...Args>  
-inline auto& MakeCacheItem(const R& ret, TimeType validtime, const Args&...args) noexcept { 
+template<typename R, typename...Args>
+inline auto& MakeCacheItem(const R& ret, TimeType validtime, const Args&...args) noexcept {
 
-    AUTOLOG//自动记录日志
+    AUTOLOG;//自动记录日志
 
-    return std::make_pair(std::make_tuple(std::cref(args)...), std::make_pair(std::cref(ret), validtime)); 
+    return std::make_pair(std::make_tuple(std::cref(args)...), std::make_pair(std::cref(ret), validtime));
 
 }
 
 template<typename F>
 inline auto MakeCache(F&& f, const TimeType validtime = MEMOIZATIONSEARCH) noexcept {//创建缓存 第二个参数是缓存的有效时间 默认是MEMOIZATIONSEARCH
+
     AUTOLOGPERFIX(typeid(F).name())//自动记录日志
 
     return MakeCacheEx(std::forward<F>(f), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//有默认参数的函数写清楚是为了把validtime传递给他
 
 }
 
-template<typename T, class F> 
-inline auto CacheMemberFunction(T&& obj, F&& func,const TimeType validtime = MEMOIZATIONSEARCH) noexcept { //缓存成员函数
+template<typename T, class F>
+inline auto CacheMemberFunction(T&& obj, F&& func, const TimeType validtime = MEMOIZATIONSEARCH) noexcept { //缓存成员函数
 
-    AUTOLOG//自动记录日志
+    AUTOLOG;//自动记录日志
 
     return MakeCacheEx(memoizationsearch::nonstd::ConvertMemberFunction(std::forward<T>(obj), std::forward<F>(func)), memoizationsearch::nonstd::CallType::cdeclcall, validtime);//先转换为一般的函数在调用,有默认参数的函数写清楚是为了把validtime传递给他
 
